@@ -320,7 +320,7 @@ const perfilData = {
       } else {
         console.log('✅ Horários de funcionamento criados com sucesso');
       }
-    } else {
+   } else {
       console.log('⚠️ PERFIL JÁ EXISTE - VERIFICANDO E ATUALIZANDO DADOS FALTANTES');
       
       // Se perfil existe, verificar se tem todos os dados e atualizar se necessário
@@ -329,6 +329,11 @@ const perfilData = {
       
       if (!existingProfile.barbearia_id) {
         dadosParaAtualizar.barbearia_id = novaBarbeariaId;
+        precisaAtualizar = true;
+      }
+      
+      if (!existingProfile.nome_estabelecimento && userData.nome_estabelecimento) {
+        dadosParaAtualizar.nome_estabelecimento = userData.nome_estabelecimento;
         precisaAtualizar = true;
       }
       
