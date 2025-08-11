@@ -182,6 +182,12 @@ const signIn = async (email, password) => {
 
 const signUp = async (email, password, userData) => {
   console.log('🚀 INICIANDO SIGNUP COM:', email);
+  console.log('📋 DADOS RECEBIDOS:', userData);
+  console.log('🏢 NOME ESTABELECIMENTO RECEBIDO:', userData.nome_estabelecimento);
+    console.log('👤 NOME COMPLETO RECEBIDO:', userData.nome_completo);
+    console.log('📞 TELEFONE RECEBIDO:', userData.telefone);
+    console.log('🆔 CPF/CNPJ RECEBIDO:', userData.cpf_cnpj);
+    console.log('👥 TIPO PESSOA RECEBIDO:', userData.tipo_pessoa);
   try {
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -194,7 +200,7 @@ const signUp = async (email, password, userData) => {
     if (error) throw error;
     
     // Gerar ID único da barbearia SEMPRE para novos usuários
-   const novaBarbeariaId = `BARB${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 999).toString().padStart(3, '0')}`;
+    const novaBarbeariaId = `BARB${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 999).toString().padStart(3, '0')}`;
     console.log('🆔 GERANDO NOVA BARBEARIA COM ID:', novaBarbeariaId);
     
     // Verificar se o perfil já existe
@@ -209,24 +215,28 @@ const signUp = async (email, password, userData) => {
     console.log('🔍 ERRO DA BUSCA:', profileError);
 
     if (!existingProfile) {
-      console.log('🆕 PERFIL NÃO EXISTE - CRIANDO NOVO COM BARBEARIA_ID');
+      console.log('🆕 PERFIL NÃO EXISTE - CRIANDO NOVO COM TODOS OS DADOS');
       
-      // Dados do perfil com barbearia_id garantido
+      // CORREÇÃO: Estruturar os dados corretamente
 const perfilData = {
   id: data.user.id,
   nome_completo: userData.nome_completo,
   nome_estabelecimento: userData.nome_estabelecimento,
   email: email,
-  telefone: userData.telefone || '',
+  telefone: userData.telefone,
   tipo_pessoa: userData.tipo_pessoa,
   cpf_cnpj: userData.cpf_cnpj,
   role: 'admin',
   barbearia_id: novaBarbeariaId,
-  ativo: true
+  ativo: true,
+  created_at: getBrasiliaDate().toISOString(),
+  updated_at: getBrasiliaDate().toISOString()
 };
       
-      console.log('🔍 DADOS COMPLETOS DO PERFIL:', perfilData);
-      console.log('🔍 BARBEARIA_ID QUE SERÁ INSERIDO:', perfilData.barbearia_id);
+      console.log('🔍 DADOS COMPLETOS DO PERFIL PARA INSERÇÃO:', perfilData);
+      console.log('📞 TELEFONE QUE SERÁ SALVO:', perfilData.telefone);
+      console.log('🆔 CPF/CNPJ QUE SERÁ SALVO:', perfilData.cpf_cnpj);
+      console.log('👤 TIPO PESSOA QUE SERÁ SALVO:', perfilData.tipo_pessoa);
 
       // Inserir perfil com retry em caso de erro
       let tentativas = 0;
@@ -257,7 +267,7 @@ const perfilData = {
         throw profileInsertError;
       }
 
-      // Verificar se o perfil foi realmente inserido com barbearia_id
+      // Verificar se o perfil foi realmente inserido com todos os dados
       const { data: perfilVerificacao, error: verificacaoError } = await supabase
         .from('user_profiles')
         .select('*')
@@ -269,12 +279,15 @@ const perfilData = {
         throw new Error('Perfil não foi inserido corretamente');
       }
       
+      console.log('✅ PERFIL VERIFICADO COM TODOS OS DADOS:', perfilVerificacao);
+      console.log('📞 TELEFONE SALVO:', perfilVerificacao.telefone);
+      console.log('🆔 CPF/CNPJ SALVO:', perfilVerificacao.cpf_cnpj);
+      console.log('👤 TIPO PESSOA SALVO:', perfilVerificacao.tipo_pessoa);
+      
       if (!perfilVerificacao.barbearia_id) {
         console.error('❌ PERFIL INSERIDO MAS SEM BARBEARIA_ID!');
         throw new Error('Perfil inserido sem barbearia_id');
       }
-      
-      console.log('✅ PERFIL VERIFICADO COM BARBEARIA_ID:', perfilVerificacao.barbearia_id);
 
       // Criar horários de funcionamento padrão para nova barbearia
       const diasSemana = [
@@ -308,23 +321,49 @@ const perfilData = {
         console.log('✅ Horários de funcionamento criados com sucesso');
       }
     } else {
-      console.log('⚠️ PERFIL JÁ EXISTE - VERIFICANDO BARBEARIA_ID');
+      console.log('⚠️ PERFIL JÁ EXISTE - VERIFICANDO E ATUALIZANDO DADOS FALTANTES');
       
-      // Se perfil existe mas não tem barbearia_id, atualizar
+      // Se perfil existe, verificar se tem todos os dados e atualizar se necessário
+      const dadosParaAtualizar = {};
+      let precisaAtualizar = false;
+      
       if (!existingProfile.barbearia_id) {
-        console.log('🔧 PERFIL EXISTE MAS SEM BARBEARIA_ID - ATUALIZANDO');
+        dadosParaAtualizar.barbearia_id = novaBarbeariaId;
+        precisaAtualizar = true;
+      }
+      
+      if (!existingProfile.telefone && userData.telefone) {
+        dadosParaAtualizar.telefone = userData.telefone;
+        precisaAtualizar = true;
+      }
+      
+      if (!existingProfile.cpf_cnpj && userData.cpf_cnpj) {
+        dadosParaAtualizar.cpf_cnpj = userData.cpf_cnpj;
+        precisaAtualizar = true;
+      }
+      
+      if (!existingProfile.tipo_pessoa && userData.tipo_pessoa) {
+        dadosParaAtualizar.tipo_pessoa = userData.tipo_pessoa;
+        precisaAtualizar = true;
+      }
+      
+      if (precisaAtualizar) {
+        console.log('🔧 ATUALIZANDO DADOS FALTANTES:', dadosParaAtualizar);
         
         const { error: updateError } = await supabase
           .from('user_profiles')
-          .update({ barbearia_id: novaBarbeariaId })
+          .update({
+            ...dadosParaAtualizar,
+            updated_at: getBrasiliaDate().toISOString()
+          })
           .eq('id', data.user.id);
           
         if (updateError) {
-          console.error('❌ ERRO AO ATUALIZAR BARBEARIA_ID:', updateError);
+          console.error('❌ ERRO AO ATUALIZAR DADOS FALTANTES:', updateError);
           throw updateError;
         }
         
-        console.log('✅ BARBEARIA_ID ATUALIZADO PARA PERFIL EXISTENTE:', novaBarbeariaId);
+        console.log('✅ DADOS FALTANTES ATUALIZADOS COM SUCESSO');
       }
     }
     
@@ -615,7 +654,7 @@ const [formData, setFormData] = useState({
     nome_estabelecimento: '',
     email: '',
     telefone: '',
-    tipo_pessoa: '', // 'fisica' ou 'juridica'
+    tipo_pessoa: '',
     cpf_cnpj: '',
     password: '',
     confirmPassword: ''
@@ -625,8 +664,11 @@ const [formData, setFormData] = useState({
   const [senhaErrors, setSenhaErrors] = useState([]);
   const { signUp } = useAuth();
 
-  const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+const handleInputChange = (field, value) => {
+    setFormData(prev => {
+      const newData = { ...prev, [field]: value };
+      return newData;
+    });
     
     // Limpar CPF/CNPJ quando mudar tipo de pessoa
     if (field === 'tipo_pessoa') {
@@ -832,14 +874,15 @@ const handleRegister = async (e) => {
 
    setLoading(true);
     
-    const result = await signUp(formData.email, formData.password, {
-      nome_completo: formData.nome_completo,
-      nome_estabelecimento: formData.nome_estabelecimento,
-      telefone: formData.telefone,
+const dadosCompletos = {
+      nome_completo: formData.nome_completo.trim(),
+      nome_estabelecimento: formData.nome_estabelecimento.trim(),
+      telefone: formData.telefone.trim(),
       tipo_pessoa: formData.tipo_pessoa,
-      cpf_cnpj: formData.cpf_cnpj.replace(/\D/g, '') // Salvar só números
-    });
+      cpf_cnpj: formData.cpf_cnpj.replace(/\D/g, '')
+    };
     
+    const result = await signUp(formData.email, formData.password, dadosCompletos);
     if (result.success) {
       alert('Conta criada com sucesso! Você pode fazer login agora.');
       onBack();
@@ -937,7 +980,6 @@ const handleRegister = async (e) => {
             />
           </div>
 
-          {/* Nome do Estabelecimento */}
           <div style={{ marginBottom: '16px' }}>
             <label style={{
               fontSize: '14px',
@@ -948,11 +990,12 @@ const handleRegister = async (e) => {
             }}>
               Nome do Estabelecimento *
             </label>
-            <input
+           <input
               type="text"
               value={formData.nome_estabelecimento}
               onChange={(e) => handleInputChange('nome_estabelecimento', e.target.value)}
               placeholder="Ex: Barbearia Elite, Salão do João..."
+              autoComplete="off"
               style={{
                 width: '100%',
                 padding: '14px',
@@ -8436,6 +8479,36 @@ onClick={() => {
 };
 
 const ConfigurarContaScreen = () => {
+  // 🎭 FUNÇÃO PARA FORMATAR CPF
+  const formatarCPFParaExibicao = (cpf) => {
+    if (!cpf) return '';
+    const numeros = cpf.replace(/\D/g, '');
+    if (numeros.length === 11) {
+      return numeros.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    }
+    return cpf;
+  };
+
+  // 🎭 FUNÇÃO PARA FORMATAR CNPJ
+  const formatarCNPJParaExibicao = (cnpj) => {
+    if (!cnpj) return '';
+    const numeros = cnpj.replace(/\D/g, '');
+    if (numeros.length === 14) {
+      return numeros.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+    }
+    return cnpj;
+  };
+
+  // 🎭 FUNÇÃO PARA FORMATAR CPF/CNPJ AUTOMATICAMENTE
+  const formatarCpfCnpj = (valor, tipoPessoa) => {
+    if (!valor) return '';
+    if (tipoPessoa === 'fisica') {
+      return formatarCPFParaExibicao(valor);
+    } else if (tipoPessoa === 'juridica') {
+      return formatarCNPJParaExibicao(valor);
+    }
+    return valor;
+  };
   // Estados locais do componente
   const [dadosConta, setDadosConta] = useState({
     nome_completo: '',
@@ -8447,6 +8520,7 @@ const ConfigurarContaScreen = () => {
   });
   const [salvandoConta, setSalvandoConta] = useState(false);
   const [redefinindoSenha, setRedefinindoSenha] = useState(false);
+  const [corrigindoDados, setCorrigindoDados] = useState(false);
   const { loadUserProfile } = useAuth(); // Obter função do contexto
 
 // Carregar dados do perfil do usuário ao abrir a tela
@@ -8466,14 +8540,12 @@ useEffect(() => {
         
         if (error) throw error;
         
-console.log('✅ Dados carregados do banco:', data);
-console.log('🔍 DETALHES DOS DADOS:');
-console.log('- nome_completo:', data.nome_completo);
-console.log('- nome_estabelecimento:', data.nome_estabelecimento);
-console.log('- email:', data.email);
-console.log('- telefone:', data.telefone);
-console.log('- tipo_pessoa:', data.tipo_pessoa);
-console.log('- cpf_cnpj:', data.cpf_cnpj);
+        console.log('✅ Dados carregados do banco:', data);
+        console.log('🏢 NOME DO ESTABELECIMENTO DO BANCO:', data.nome_estabelecimento);
+        console.log('👤 NOME COMPLETO DO BANCO:', data.nome_completo);
+        console.log('📞 TELEFONE DO BANCO:', data.telefone);
+        console.log('🆔 CPF/CNPJ DO BANCO:', data.cpf_cnpj);
+        console.log('👥 TIPO PESSOA DO BANCO:', data.tipo_pessoa);
         
         if (data) {
           const dadosCarregados = {
@@ -8485,27 +8557,28 @@ console.log('- cpf_cnpj:', data.cpf_cnpj);
             cpf_cnpj: data.cpf_cnpj || ''
           };
           
-console.log('📋 Dados que serão exibidos:', dadosCarregados);
-console.log('🎯 DADOS FINAIS:');
-console.log('- nome_completo:', dadosCarregados.nome_completo);
-console.log('- nome_estabelecimento:', dadosCarregados.nome_estabelecimento);
-console.log('- email:', dadosCarregados.email);
-console.log('- telefone:', dadosCarregados.telefone);
-console.log('- tipo_pessoa:', dadosCarregados.tipo_pessoa);
-console.log('- cpf_cnpj:', dadosCarregados.cpf_cnpj);
-          setDadosConta(dadosCarregados);
+          console.log('📋 Dados que serão exibidos no formulário:', dadosCarregados);
+          console.log('🏢 NOME ESTABELECIMENTO FINAL:', dadosCarregados.nome_estabelecimento);
+          setDadosConta({
+            nome_completo: data.nome_completo || '',
+            nome_estabelecimento: data.nome_estabelecimento || '',
+            email: data.email || user?.email || '',
+            telefone: data.telefone || '',
+            tipo_pessoa: data.tipo_pessoa || '',
+            cpf_cnpj: data.cpf_cnpj || ''
+          });
         }
       } catch (error) {
         console.error('❌ Erro ao carregar dados da conta:', error);
         
         // Fallback para dados do userProfile atual
-        const dadosFallback = {
-          nome_completo: userProfile.nome_completo || '',
-          nome_estabelecimento: userProfile.nome_estabelecimento || '',
-          email: userProfile.email || '',
-          telefone: userProfile.telefone || '',
-          tipo_pessoa: userProfile.tipo_pessoa || '',
-          cpf_cnpj: userProfile.cpf_cnpj || ''
+const dadosFallback = {
+          nome_completo: userProfile?.nome_completo || user?.user_metadata?.nome_completo || '',
+          nome_estabelecimento: userProfile?.nome_estabelecimento || user?.user_metadata?.nome_estabelecimento || '',
+          email: userProfile?.email || user?.email || '',
+          telefone: userProfile?.telefone || user?.user_metadata?.telefone || '',
+          tipo_pessoa: userProfile?.tipo_pessoa || user?.user_metadata?.tipo_pessoa || '',
+          cpf_cnpj: userProfile?.cpf_cnpj || user?.user_metadata?.cpf_cnpj || ''
         };
         
         console.log('🔄 Usando dados do userProfile como fallback:', dadosFallback);
@@ -8517,8 +8590,53 @@ console.log('- cpf_cnpj:', dadosCarregados.cpf_cnpj);
   };
   
   carregarDadosConta();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [userProfile?.id]);
 
+const corrigirDadosAusentes = async () => {
+  const confirmacao = window.confirm(
+    'Detectamos que alguns dados estão faltando no seu perfil. ' +
+    'Deseja preencher automaticamente com os dados padrão? ' +
+    'Você poderá editá-los depois.'
+  );
+  
+  if (!confirmacao) return;
+  
+  setCorrigindoDados(true);
+  try {
+    // Dados que estão faltando para preencher
+    const dadosCorrecao = {
+      nome_estabelecimento: dadosConta.nome_estabelecimento || 'Minha Barbearia',
+      telefone: dadosConta.telefone || '',
+      tipo_pessoa: dadosConta.tipo_pessoa || 'fisica', // Padrão pessoa física
+      cpf_cnpj: dadosConta.cpf_cnpj || '',
+      updated_at: getBrasiliaDate().toISOString()
+    };
+    
+    console.log('🔧 Corrigindo dados ausentes:', dadosCorrecao);
+    
+    const { error } = await supabase
+      .from('user_profiles')
+      .update(dadosCorrecao)
+      .eq('id', userProfile?.id);
+    
+    if (error) throw error;
+    
+    // Recarregar os dados
+    setDadosConta(prev => ({
+      ...prev,
+      ...dadosCorrecao
+    }));
+    
+    mostrarPopupSucesso('Dados corrigidos com sucesso! Agora você pode editá-los.');
+    
+  } catch (error) {
+    console.error('Erro ao corrigir dados:', error);
+    alert('Erro ao corrigir dados: ' + error.message);
+  } finally {
+    setCorrigindoDados(false);
+  }
+};
 const redefinirSenha = async () => {
   const confirmacao = window.confirm('Tem certeza que deseja redefinir sua senha? Você receberá um email com as instruções.');
   
@@ -8600,7 +8718,68 @@ const { error } = await supabase
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     }}>
       <Header title="Configurar Conta" subtitle="Edite os dados da sua conta" showBack />
-
+{/* BOTÃO DE CORREÇÃO - TEMPORÁRIO */}
+        {(dadosConta.telefone === '' || dadosConta.nome_estabelecimento === '' || dadosConta.tipo_pessoa === '') && (
+          <div style={{
+            background: '#FEE2E2',
+            border: '1px solid #EF4444',
+            borderRadius: '8px',
+            padding: '16px',
+            marginBottom: '20px'
+          }}>
+            <h4 style={{
+              fontSize: '14px',
+              fontWeight: '600',
+              color: '#DC2626',
+              margin: '0 0 8px 0'
+            }}>
+              ⚠️ Dados Incompletos Detectados
+            </h4>
+            <p style={{
+              fontSize: '12px',
+              color: '#7F1D1D',
+              margin: '0 0 12px 0',
+              lineHeight: '1.5'
+            }}>
+              Alguns dados estão faltando no seu perfil. Clique para preencher automaticamente.
+            </p>
+            <button
+              onClick={corrigirDadosAusentes}
+              disabled={corrigindoDados}
+              style={{
+                background: corrigindoDados ? '#94A3B8' : '#EF4444',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '12px 16px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: corrigindoDados ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              {corrigindoDados ? (
+                <>
+                  <div style={{
+                    width: '14px',
+                    height: '14px',
+                    border: '2px solid #FFFFFF',
+                    borderTop: '2px solid transparent',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }} />
+                  Corrigindo...
+                </>
+              ) : (
+                <>
+                  🔧 Corrigir Dados
+                </>
+              )}
+            </button>
+          </div>
+        )}
       <div style={{ padding: '20px' }}>
         {/* DADOS PESSOAIS */}
         <div style={{
@@ -8732,7 +8911,7 @@ const { error } = await supabase
               type="text"
               value={dadosConta.nome_estabelecimento}
               onChange={(e) => setDadosConta(prev => ({ ...prev, nome_estabelecimento: e.target.value }))}
-              placeholder="Nome da sua barbearia"
+              placeholder="Digite o nome do seu estabelecimento"
               style={{
                 width: '100%',
                 padding: '12px',
@@ -8839,7 +9018,7 @@ const { error } = await supabase
             }}>
               Clique no botão abaixo para receber um email com instruções para redefinir sua senha.
             </p>
-            <button
+<button
               onClick={redefinirSenha}
               disabled={redefinindoSenha}
               style={{
@@ -8888,10 +9067,14 @@ const { error } = await supabase
               }}>
                 {dadosConta.tipo_pessoa === 'fisica' ? 'CPF' : 'CNPJ'}
               </label>
-            <input
+<input
               type="text"
-              value={dadosConta.cpf_cnpj}
-              onChange={(e) => setDadosConta(prev => ({ ...prev, cpf_cnpj: e.target.value }))}
+              value={formatarCpfCnpj(dadosConta.cpf_cnpj, dadosConta.tipo_pessoa)}
+              onChange={(e) => {
+                // Remove formatação para salvar apenas números
+                const apenasNumeros = e.target.value.replace(/\D/g, '');
+                setDadosConta(prev => ({ ...prev, cpf_cnpj: apenasNumeros }));
+              }}
               placeholder={dadosConta.tipo_pessoa === 'fisica' ? '000.000.000-00' : '00.000.000/0000-00'}
               style={{
                 width: '100%',
@@ -8902,7 +9085,7 @@ const { error } = await supabase
                 outline: 'none',
                 boxSizing: 'border-box'
               }}
-          />
+            />
             </div>
           )}
         </div>
