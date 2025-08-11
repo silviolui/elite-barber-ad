@@ -212,15 +212,18 @@ const signUp = async (email, password, userData) => {
       console.log('🆕 PERFIL NÃO EXISTE - CRIANDO NOVO COM BARBEARIA_ID');
       
       // Dados do perfil com barbearia_id garantido
-      const perfilData = {
-        id: data.user.id,
-        nome_completo: userData.nome_completo,
-        email: email,
-        telefone: userData.telefone || '',
-        role: 'admin',
-        barbearia_id: novaBarbeariaId,
-        ativo: true
-      };
+const perfilData = {
+  id: data.user.id,
+  nome_completo: userData.nome_completo,
+  nome_estabelecimento: userData.nome_estabelecimento,
+  email: email,
+  telefone: userData.telefone || '',
+  tipo_pessoa: userData.tipo_pessoa,
+  cpf_cnpj: userData.cpf_cnpj,
+  role: 'admin',
+  barbearia_id: novaBarbeariaId,
+  ativo: true
+};
       
       console.log('🔍 DADOS COMPLETOS DO PERFIL:', perfilData);
       console.log('🔍 BARBEARIA_ID QUE SERÁ INSERIDO:', perfilData.barbearia_id);
@@ -5090,6 +5093,27 @@ const SuccessPopup = () => {
   <span>Configurações</span>
 </button>
 <button 
+  onClick={() => {
+    setCurrentScreen('configurar_conta');
+    setShowMenu(false);
+  }}
+  style={{
+    width: '100%',
+    background: 'none',
+    border: 'none',
+    padding: '12px 0',
+    fontSize: '14px',
+    color: '#64748B',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px'
+  }}
+>
+  <User size={16} />
+  <span>Configurar Conta</span>
+</button>
+<button 
   onClick={async () => {
     const confirmar = window.confirm('Tem certeza que deseja sair da sua conta?');
     if (confirmar) {
@@ -8410,6 +8434,522 @@ onClick={() => {
     </div>
   );
 };
+
+const ConfigurarContaScreen = () => {
+  // Estados locais do componente
+  const [dadosConta, setDadosConta] = useState({
+    nome_completo: '',
+    nome_estabelecimento: '',
+    email: '',
+    telefone: '',
+    tipo_pessoa: '',
+    cpf_cnpj: ''
+  });
+  const [salvandoConta, setSalvandoConta] = useState(false);
+  const [redefinindoSenha, setRedefinindoSenha] = useState(false);
+  const { loadUserProfile } = useAuth(); // Obter função do contexto
+
+// Carregar dados do perfil do usuário ao abrir a tela
+useEffect(() => {
+  const carregarDadosConta = async () => {
+    console.log('🔄 Carregando dados da conta...');
+    console.log('👤 UserProfile atual:', userProfile);
+    
+    if (userProfile?.id) {
+      try {
+        // Buscar dados atualizados do usuário
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', userProfile.id)
+          .single();
+        
+        if (error) throw error;
+        
+console.log('✅ Dados carregados do banco:', data);
+console.log('🔍 DETALHES DOS DADOS:');
+console.log('- nome_completo:', data.nome_completo);
+console.log('- nome_estabelecimento:', data.nome_estabelecimento);
+console.log('- email:', data.email);
+console.log('- telefone:', data.telefone);
+console.log('- tipo_pessoa:', data.tipo_pessoa);
+console.log('- cpf_cnpj:', data.cpf_cnpj);
+        
+        if (data) {
+          const dadosCarregados = {
+            nome_completo: data.nome_completo || '',
+            nome_estabelecimento: data.nome_estabelecimento || '',
+            email: data.email || '',
+            telefone: data.telefone || '',
+            tipo_pessoa: data.tipo_pessoa || '',
+            cpf_cnpj: data.cpf_cnpj || ''
+          };
+          
+console.log('📋 Dados que serão exibidos:', dadosCarregados);
+console.log('🎯 DADOS FINAIS:');
+console.log('- nome_completo:', dadosCarregados.nome_completo);
+console.log('- nome_estabelecimento:', dadosCarregados.nome_estabelecimento);
+console.log('- email:', dadosCarregados.email);
+console.log('- telefone:', dadosCarregados.telefone);
+console.log('- tipo_pessoa:', dadosCarregados.tipo_pessoa);
+console.log('- cpf_cnpj:', dadosCarregados.cpf_cnpj);
+          setDadosConta(dadosCarregados);
+        }
+      } catch (error) {
+        console.error('❌ Erro ao carregar dados da conta:', error);
+        
+        // Fallback para dados do userProfile atual
+        const dadosFallback = {
+          nome_completo: userProfile.nome_completo || '',
+          nome_estabelecimento: userProfile.nome_estabelecimento || '',
+          email: userProfile.email || '',
+          telefone: userProfile.telefone || '',
+          tipo_pessoa: userProfile.tipo_pessoa || '',
+          cpf_cnpj: userProfile.cpf_cnpj || ''
+        };
+        
+        console.log('🔄 Usando dados do userProfile como fallback:', dadosFallback);
+        setDadosConta(dadosFallback);
+      }
+    } else {
+      console.log('❌ UserProfile não encontrado');
+    }
+  };
+  
+  carregarDadosConta();
+}, [userProfile?.id]);
+
+const redefinirSenha = async () => {
+  const confirmacao = window.confirm('Tem certeza que deseja redefinir sua senha? Você receberá um email com as instruções.');
+  
+  if (!confirmacao) return;
+  
+  setRedefinindoSenha(true);
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(dadosConta.email, {
+      redirectTo: window.location.origin + '/reset-password'
+    });
+    
+    if (error) throw error;
+    
+    mostrarPopupSucesso('Email de redefinição de senha enviado! Verifique sua caixa de entrada.');
+    
+  } catch (error) {
+    console.error('Erro ao redefinir senha:', error);
+    alert('Erro ao enviar email de redefinição: ' + error.message);
+  } finally {
+    setRedefinindoSenha(false);
+  }
+};
+  const salvarDadosConta = async () => {
+    setSalvandoConta(true);
+    try {
+      // Validações básicas
+      if (!dadosConta.nome_completo.trim()) {
+        alert('Nome completo é obrigatório');
+        return;
+      }
+      if (!dadosConta.nome_estabelecimento.trim()) {
+        alert('Nome do estabelecimento é obrigatório');
+        return;
+      }
+      if (!dadosConta.email.trim()) {
+        alert('Email é obrigatório');
+        return;
+      }
+
+      // Dados que serão salvos
+const dadosParaSalvar = {
+  nome_completo: dadosConta.nome_completo.trim(),
+  nome_estabelecimento: dadosConta.nome_estabelecimento.trim(),
+  email: dadosConta.email.trim(),
+  telefone: dadosConta.telefone.trim(),
+  tipo_pessoa: dadosConta.tipo_pessoa,
+  cpf_cnpj: dadosConta.cpf_cnpj.trim(),
+  updated_at: getBrasiliaDate().toISOString()
+};
+
+console.log('💾 Salvando dados:', dadosParaSalvar);
+
+// Atualizar no Supabase
+const { error } = await supabase
+  .from('user_profiles')
+  .update(dadosParaSalvar)
+  .eq('id', userProfile?.id);
+
+      if (error) throw error;
+
+      // Recarregar perfil do usuário
+      await loadUserProfile(userProfile?.id);
+      
+      mostrarPopupSucesso('Dados da conta atualizados com sucesso!');
+      
+    } catch (error) {
+      console.error('Erro ao salvar dados da conta:', error);
+      alert('Erro ao salvar dados da conta: ' + error.message);
+    } finally {
+      setSalvandoConta(false);
+    }
+  };
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: '#F8FAFC',
+      paddingBottom: '100px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    }}>
+      <Header title="Configurar Conta" subtitle="Edite os dados da sua conta" showBack />
+
+      <div style={{ padding: '20px' }}>
+        {/* DADOS PESSOAIS */}
+        <div style={{
+          background: '#FFFFFF',
+          border: '1px solid #F1F5F9',
+          borderRadius: '12px',
+          padding: '20px',
+          marginBottom: '20px'
+        }}>
+          <h3 style={{
+            fontSize: '16px',
+            fontWeight: '600',
+            color: '#1E293B',
+            margin: '0 0 16px 0'
+          }}>
+            👤 Dados Pessoais
+          </h3>
+
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{
+              fontSize: '12px',
+              color: '#64748B',
+              fontWeight: '500',
+              marginBottom: '4px',
+              display: 'block'
+            }}>
+              Nome Completo *
+            </label>
+            <input
+              type="text"
+              value={dadosConta.nome_completo}
+              onChange={(e) => setDadosConta(prev => ({ ...prev, nome_completo: e.target.value }))}
+              placeholder="Seu nome completo"
+              style={{
+                width: '100%',
+                padding: '12px',
+                border: '1px solid #E2E8F0',
+                borderRadius: '8px',
+                fontSize: '16px',
+                outline: 'none',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{
+              fontSize: '12px',
+              color: '#64748B',
+              fontWeight: '500',
+              marginBottom: '4px',
+              display: 'block'
+            }}>
+              Email *
+            </label>
+            <input
+              type="email"
+              value={dadosConta.email}
+              onChange={(e) => setDadosConta(prev => ({ ...prev, email: e.target.value }))}
+              placeholder="seu@email.com"
+              style={{
+                width: '100%',
+                padding: '12px',
+                border: '1px solid #E2E8F0',
+                borderRadius: '8px',
+                fontSize: '16px',
+                outline: 'none',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{
+              fontSize: '12px',
+              color: '#64748B',
+              fontWeight: '500',
+              marginBottom: '4px',
+              display: 'block'
+            }}>
+              Telefone *
+            </label>
+            <input
+              type="tel"
+              value={dadosConta.telefone}
+              onChange={(e) => setDadosConta(prev => ({ ...prev, telefone: e.target.value }))}
+              placeholder="(00) 00000-0000"
+              style={{
+                width: '100%',
+                padding: '12px',
+                border: '1px solid #E2E8F0',
+                borderRadius: '8px',
+                fontSize: '16px',
+                outline: 'none',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+        </div>
+
+        {/* DADOS DO ESTABELECIMENTO */}
+        <div style={{
+          background: '#FFFFFF',
+          border: '1px solid #F1F5F9',
+          borderRadius: '12px',
+          padding: '20px',
+          marginBottom: '20px'
+        }}>
+          <h3 style={{
+            fontSize: '16px',
+            fontWeight: '600',
+            color: '#1E293B',
+            margin: '0 0 16px 0'
+          }}>
+            🏢 Dados do Estabelecimento
+          </h3>
+
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{
+              fontSize: '12px',
+              color: '#64748B',
+              fontWeight: '500',
+              marginBottom: '4px',
+              display: 'block'
+            }}>
+              Nome do Estabelecimento *
+            </label>
+            <input
+              type="text"
+              value={dadosConta.nome_estabelecimento}
+              onChange={(e) => setDadosConta(prev => ({ ...prev, nome_estabelecimento: e.target.value }))}
+              placeholder="Nome da sua barbearia"
+              style={{
+                width: '100%',
+                padding: '12px',
+                border: '1px solid #E2E8F0',
+                borderRadius: '8px',
+                fontSize: '16px',
+                outline: 'none',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{
+              fontSize: '12px',
+              color: '#64748B',
+              fontWeight: '500',
+              marginBottom: '8px',
+              display: 'block'
+            }}>
+              Tipo de Pessoa
+            </label>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <label style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                padding: '12px',
+                border: `2px solid ${dadosConta.tipo_pessoa === 'fisica' ? '#FF6B35' : '#F1F5F9'}`,
+                borderRadius: '10px',
+                cursor: 'pointer',
+                background: dadosConta.tipo_pessoa === 'fisica' ? '#FFF7F5' : '#FFFFFF',
+                transition: 'all 0.2s'
+              }}>
+                <input
+                  type="radio"
+                  name="tipo_pessoa"
+                  value="fisica"
+                  checked={dadosConta.tipo_pessoa === 'fisica'}
+                  onChange={(e) => setDadosConta(prev => ({ ...prev, tipo_pessoa: e.target.value }))}
+                  style={{ marginRight: '8px' }}
+                />
+                <span style={{ fontSize: '14px', fontWeight: '500' }}>👤 Pessoa Física</span>
+              </label>
+              <label style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                padding: '12px',
+                border: `2px solid ${dadosConta.tipo_pessoa === 'juridica' ? '#FF6B35' : '#F1F5F9'}`,
+                borderRadius: '10px',
+                cursor: 'pointer',
+                background: dadosConta.tipo_pessoa === 'juridica' ? '#FFF7F5' : '#FFFFFF',
+                transition: 'all 0.2s'
+              }}>
+                <input
+                  type="radio"
+                  name="tipo_pessoa"
+                  value="juridica"
+                  checked={dadosConta.tipo_pessoa === 'juridica'}
+                  onChange={(e) => setDadosConta(prev => ({ ...prev, tipo_pessoa: e.target.value }))}
+                  style={{ marginRight: '8px' }}
+                />
+                <span style={{ fontSize: '14px', fontWeight: '500' }}>🏢 Pessoa Jurídica</span>
+              </label>
+            </div>
+          </div>
+{/* SEGURANÇA */}
+        <div style={{
+          background: '#FFFFFF',
+          border: '1px solid #F1F5F9',
+          borderRadius: '12px',
+          padding: '20px',
+          marginBottom: '20px'
+        }}>
+          <h3 style={{
+            fontSize: '16px',
+            fontWeight: '600',
+            color: '#1E293B',
+            margin: '0 0 16px 0'
+          }}>
+            🔒 Segurança
+          </h3>
+
+          <div style={{
+            background: '#F8FAFC',
+            borderRadius: '8px',
+            padding: '16px',
+            marginBottom: '16px'
+          }}>
+            <h4 style={{
+              fontSize: '14px',
+              fontWeight: '600',
+              color: '#1E293B',
+              margin: '0 0 8px 0'
+            }}>
+              Redefinir Senha
+            </h4>
+            <p style={{
+              fontSize: '12px',
+              color: '#64748B',
+              margin: '0 0 12px 0',
+              lineHeight: '1.5'
+            }}>
+              Clique no botão abaixo para receber um email com instruções para redefinir sua senha.
+            </p>
+            <button
+              onClick={redefinirSenha}
+              disabled={redefinindoSenha}
+              style={{
+                background: redefinindoSenha ? '#94A3B8' : '#FF6B35',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '12px 20px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: redefinindoSenha ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              {redefinindoSenha ? (
+                <>
+                  <div style={{
+                    width: '14px',
+                    height: '14px',
+                    border: '2px solid #FFFFFF',
+                    borderTop: '2px solid transparent',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }} />
+                  Enviando...
+                </>
+              ) : (
+                <>
+                  🔑 Redefinir Senha
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+          {dadosConta.tipo_pessoa && (
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{
+                fontSize: '12px',
+                color: '#64748B',
+                fontWeight: '500',
+                marginBottom: '4px',
+                display: 'block'
+              }}>
+                {dadosConta.tipo_pessoa === 'fisica' ? 'CPF' : 'CNPJ'}
+              </label>
+            <input
+              type="text"
+              value={dadosConta.cpf_cnpj}
+              onChange={(e) => setDadosConta(prev => ({ ...prev, cpf_cnpj: e.target.value }))}
+              placeholder={dadosConta.tipo_pessoa === 'fisica' ? '000.000.000-00' : '00.000.000/0000-00'}
+              style={{
+                width: '100%',
+                padding: '12px',
+                border: '1px solid #E2E8F0',
+                borderRadius: '8px',
+                fontSize: '16px',
+                outline: 'none',
+                boxSizing: 'border-box'
+              }}
+          />
+            </div>
+          )}
+        </div>
+
+        {/* BOTÃO SALVAR */}
+        <button
+          onClick={salvarDadosConta}
+          disabled={salvandoConta}
+          style={{
+            width: '100%',
+            background: salvandoConta ? '#94A3B8' : '#10B981',
+            color: 'white',
+            border: 'none',
+            borderRadius: '12px',
+            padding: '16px',
+            fontSize: '16px',
+            fontWeight: '600',
+            cursor: salvandoConta ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px'
+          }}
+        >
+          {salvandoConta ? (
+            <>
+              <div style={{
+                width: '16px',
+                height: '16px',
+                border: '2px solid #FFFFFF',
+                borderTop: '2px solid transparent',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }} />
+              Salvando...
+            </>
+          ) : (
+            <>
+              <Check size={16} />
+              Salvar Alterações
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+};
 const RelatoriosMenuScreen = () => {
   const [tipoRelatorio, setTipoRelatorio] = useState(null);
   
@@ -10834,6 +11374,8 @@ const ComingSoonScreen = ({ title }) => (
         return <ComingSoonScreen title="Marketing" />;
       case 'relatorios':
         return <RelatoriosMenuScreen />;
+      case 'configurar_conta':
+        return <ConfigurarContaScreen />;
       default:
         return <Dashboard />;
     }
