@@ -1815,19 +1815,20 @@ const loadData = useCallback(async (showLoadingState = false) => {
     }
     
     // Carregar horários APENAS desta barbearia
-    const { data: horariosData, error: horariosError } = await supabase
-      .from('horarios_funcionamento')
-      .select('*')
-      .eq('barbearia_id', userProfile.barbearia_id)
-      .order('dia_semana_numero');
-    
-    if (horariosError) {
-      console.log('⚠️ Erro ao carregar horários:', horariosError);
-      setHorariosFuncionamento([]);
-    } else {
-      setHorariosFuncionamento(horariosData || []);
-      console.log('✅ Horários carregados:', (horariosData || []).length);
-    }
+// Carregar horários APENAS desta barbearia
+const { data: horariosData, error: horariosError } = await supabase
+  .from('horarios_funcionamento')
+  .select('*')
+  .eq('barbearia_id', userProfile.barbearia_id)
+  .order('dia_semana_numero');
+
+if (horariosError) {
+  console.log('⚠️ Erro ao carregar horários:', horariosError);
+  setHorariosFuncionamento([]);
+} else {
+  console.log('✅ Horários carregados para barbearia:', userProfile.barbearia_id, horariosData);
+  setHorariosFuncionamento(horariosData || []);
+}
     
     console.log('✅ Histórico carregado:', (historicoData || []).length);
     
@@ -2936,8 +2937,27 @@ const calcularHoraFim = (horaInicio, valorTotal) => {
 };
 
 // 🕐 CALCULAR HORÁRIOS DISPONÍVEIS
+// 🕐 CALCULAR HORÁRIOS DISPONÍVEIS
 const calcularHorariosDisponiveis = (barbeiro_id, data_selecionada) => {
-// 🕐 CALCULAR DURAÇÃO EXATA DOS SERVIÇOS SELECIONADOS
+  console.log('🕐 === CALCULANDO HORÁRIOS DISPONÍVEIS ===');
+  console.log('👨‍💼 Barbeiro ID:', barbeiro_id);
+  console.log('📅 Data selecionada:', data_selecionada);
+  console.log('🏢 Barbearia ID:', userProfile?.barbearia_id);
+
+  // Verificar se tem todos os dados necessários
+  if (!userProfile?.barbearia_id) {
+    console.log('❌ Barbearia ID não disponível');
+    setHorariosDisponiveis([]);
+    return;
+  }
+
+  if (!barbeiro_id || !data_selecionada) {
+    console.log('❌ Dados obrigatórios não informados');
+    setHorariosDisponiveis([]);
+    return;
+  }
+
+  // 🕐 CALCULAR DURAÇÃO EXATA DOS SERVIÇOS SELECIONADOS
   let duracaoTotal = 0;
   
   console.log('🔍 === CALCULANDO DURAÇÃO ===');
@@ -2980,7 +3000,6 @@ const calcularHorariosDisponiveis = (barbeiro_id, data_selecionada) => {
     // Hora atual + 15 minutos
     let horarioMinimo = horaAtual * 60 + minutoAtual + 15;
     
-    // Arredondar para o próximo slot de 30 em 30 minutos
     // Arredondar para o próximo slot baseado na duração exata
     horarioMinimo = Math.ceil(horarioMinimo / duracaoTotal) * duracaoTotal;
     
@@ -2991,40 +3010,48 @@ const calcularHorariosDisponiveis = (barbeiro_id, data_selecionada) => {
     console.log('⏰ Horário mínimo para agendamento:', `${Math.floor(horarioMinimo / 60)}:${(horarioMinimo % 60).toString().padStart(2, '0')}`);
   }
 
-// Obter horário do dia da semana selecionado
-const dataSelecionada = new Date(data_selecionada + 'T00:00:00');
-const diaSemana = dataSelecionada.getDay(); // 0 = Domingo, 1 = Segunda, etc.
+  // Obter horário do dia da semana selecionado
+  const dataSelecionada = new Date(data_selecionada + 'T00:00:00');
+  const diaSemana = dataSelecionada.getDay(); // 0 = Domingo, 1 = Segunda, etc.
 
-const horarioDia = horariosFuncionamento.find(h => h.dia_semana_numero === diaSemana);
+  console.log('📅 Dia da semana:', diaSemana);
+  console.log('📋 Horários funcionamento disponíveis:', horariosFuncionamento.length);
 
-if (!horarioDia || !horarioDia.ativo) {
-  console.log('🔒 Barbearia fechada neste dia');
-  setHorariosDisponiveis([]);
-  return;
-}
+  const horarioDia = horariosFuncionamento.find(h => 
+    h.dia_semana_numero === diaSemana && 
+    h.barbearia_id === userProfile?.barbearia_id
+  );
 
-// Montar períodos do dia baseado na tabela
-const periodos = [];
+  console.log('📋 Horário encontrado para o dia:', horarioDia);
 
-// Adicionar manhã se existir
-if (horarioDia.hora_inicio_manha && horarioDia.hora_fim_manha) {
-  periodos.push({
-    inicio: horarioDia.hora_inicio_manha.substring(0, 5),
-    fim: horarioDia.hora_fim_manha.substring(0, 5),
-    nome: 'Manhã'
-  });
-}
+  if (!horarioDia || !horarioDia.ativo) {
+    console.log('🔒 Barbearia fechada neste dia');
+    setHorariosDisponiveis([]);
+    return;
+  }
 
-// Adicionar tarde se existir
-if (horarioDia.hora_inicio_tarde && horarioDia.hora_fim_tarde) {
-  periodos.push({
-    inicio: horarioDia.hora_inicio_tarde.substring(0, 5),
-    fim: horarioDia.hora_fim_tarde.substring(0, 5),
-    nome: 'Tarde'
-  });
-}
+  // Montar períodos do dia baseado na tabela
+  const periodos = [];
 
-console.log('📅 Horários do dia:', horarioDia.dia_semana, periodos);
+  // Adicionar manhã se existir
+  if (horarioDia.hora_inicio_manha && horarioDia.hora_fim_manha) {
+    periodos.push({
+      inicio: horarioDia.hora_inicio_manha.substring(0, 5),
+      fim: horarioDia.hora_fim_manha.substring(0, 5),
+      nome: 'Manhã'
+    });
+  }
+
+  // Adicionar tarde se existir
+  if (horarioDia.hora_inicio_tarde && horarioDia.hora_fim_tarde) {
+    periodos.push({
+      inicio: horarioDia.hora_inicio_tarde.substring(0, 5),
+      fim: horarioDia.hora_fim_tarde.substring(0, 5),
+      nome: 'Tarde'
+    });
+  }
+
+  console.log('📅 Horários do dia:', horarioDia.dia_semana, periodos);
 
   const slotsDisponiveis = [];
 
@@ -3035,8 +3062,8 @@ console.log('📅 Horários do dia:', horarioDia.dia_semana, periodos);
     const inicioMinutos = horaInicio * 60 + minInicio;
     const fimMinutos = horaFim * 60 + minFim;
 
-// Gerar slots baseados na duração do serviço/combo
-// Usar a duração EXATA do serviço/combo como incremento
+    // Gerar slots baseados na duração do serviço/combo
+    // Usar a duração EXATA do serviço/combo como incremento
     const incremento = duracaoTotal;
     
     console.log('⏱️ Duração do serviço/combo:', duracaoTotal, 'min');
@@ -3053,18 +3080,20 @@ console.log('📅 Horários do dia:', horarioDia.dia_semana, periodos);
       const mins = minutos % 60;
       const horarioFormatado = `${horas.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
       
-// Calcular horário de fim do slot
+      // Calcular horário de fim do slot
       const minutosInicioSlot = minutos;
       const minutosFimSlot = minutos + duracaoTotal;
       const horasFim = Math.floor(minutosFimSlot / 60);
       const minsFim = minutosFimSlot % 60;
       const horarioFimFormatado = `${horasFim.toString().padStart(2, '0')}:${minsFim.toString().padStart(2, '0')}`;
       
-      // Verificar se TODO o período está livre (não apenas o horário de início)
+      // CORREÇÃO: Verificar se TODO o período está livre (filtrar por barbearia_id)
       const conflito = agendamentos.find(agendamento => {
+        // VERIFICAÇÕES ESSENCIAIS com barbearia_id
         if (agendamento.barbeiro_id !== barbeiro_id ||
             agendamento.data_agendamento !== data_selecionada ||
             agendamento.status !== 'agendado' ||
+            agendamento.barbearia_id !== userProfile?.barbearia_id || // ← ADICIONADO
             agendamento.id === agendamentoEditando?.id) {
           return false;
         }
@@ -3100,29 +3129,39 @@ console.log('📅 Horários do dia:', horarioDia.dia_semana, periodos);
     }
   });
 
-  console.log('⏰ Slots disponíveis:', slotsDisponiveis.length);
+  console.log('⏰ Slots disponíveis calculados:', slotsDisponiveis.length);
+  console.log('📋 Lista de slots:', slotsDisponiveis);
   setHorariosDisponiveis(slotsDisponiveis);
 };
 // Carregar serviços disponíveis
 useEffect(() => {
   const carregarServicos = async () => {
     try {
-const { data, error } = await supabase
-  .from('servicos')
-  .select('*')
-  .eq('barbearia_id', userProfile?.barbearia_id)
-  .eq('ativo', true)
-  .order('nome');
+      if (!userProfile?.barbearia_id) {
+        console.log('❌ Barbearia ID não disponível ainda');
+        return;
+      }
+
+      console.log('🔍 Carregando serviços para barbearia:', userProfile.barbearia_id);
+
+      const { data, error } = await supabase
+        .from('servicos')
+        .select('*')
+        .eq('barbearia_id', userProfile.barbearia_id)
+        .eq('ativo', true)
+        .order('nome');
       
       if (error) throw error;
+      
+      console.log('✅ Serviços carregados:', data);
       setServicosDisponiveis(data || []);
     } catch (error) {
       console.error('Erro ao carregar serviços:', error);
     }
   };
+  
   carregarServicos();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
+}, [userProfile?.barbearia_id]); // ← CORRIGIDO: Adicionado userProfile?.barbearia_id nas dependências
 
 // 🔔 VERIFICAR PERMISSÕES E SERVICE WORKER PERIODICAMENTE
 useEffect(() => {
@@ -3883,8 +3922,12 @@ const { error } = await supabase
   }
 };
 
-  if (!showProfissionalModal) return null;
 
+if (!showProfissionalModal) return null;
+
+// Debug para verificar se os serviços estão carregando
+console.log('🔍 ProfissionalModal - Serviços disponíveis:', servicosDisponiveis.length);
+console.log('🔍 ProfissionalModal - Barbearia ID:', userProfile?.barbearia_id);
   return (
 <div 
   style={{
@@ -4100,60 +4143,66 @@ const { error } = await supabase
               📋 Selecionar serviços disponíveis:
             </div>
             
-            {servicosDisponiveis
-              .filter(servico => servico.Combo === 'Serviço')
-              .map((servico) => (
-                <label 
-                  key={servico.id} 
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '6px 0',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    color: '#1E293B'
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={localServicos.includes(servico.nome)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setLocalServicos(prev => [...prev, servico.nome]);
-                      } else {
-                        setLocalServicos(prev => prev.filter(s => s !== servico.nome));
-                      }
-                    }}
-                    style={{
-                      width: '16px',
-                      height: '16px',
-                      cursor: 'pointer'
-                    }}
-                  />
-                  <span>{servico.nome}</span>
-                  <span style={{
-                    fontSize: '11px',
-                    color: '#64748B',
-                    marginLeft: 'auto'
-                  }}>
-                    {servico.duracao_minutos}min • R$ {(servico.preco || 0).toFixed(2).replace('.', ',')}
-                  </span>
-                </label>
-              ))}
-            
-            {servicosDisponiveis.filter(s => s.Combo === 'Serviço').length === 0 && (
-              <div style={{
-                textAlign: 'center',
-                color: '#94A3B8',
-                fontSize: '12px',
-                padding: '16px 0'
-              }}>
-                📋 Nenhum serviço cadastrado ainda
-                <br />
-                Cadastre serviços na tela "Serviços" primeiro
-              </div>
-            )}
+{servicosDisponiveis.length > 0 ? (
+  servicosDisponiveis
+    .filter(servico => servico.Combo === 'Serviço')
+    .map((servico) => (
+      <label 
+        key={servico.id} 
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '6px 0',
+          cursor: 'pointer',
+          fontSize: '14px',
+          color: '#1E293B'
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={localServicos.includes(servico.nome)}
+          onChange={(e) => {
+            if (e.target.checked) {
+              setLocalServicos(prev => [...prev, servico.nome]);
+            } else {
+              setLocalServicos(prev => prev.filter(s => s !== servico.nome));
+            }
+          }}
+          style={{
+            width: '16px',
+            height: '16px',
+            cursor: 'pointer'
+          }}
+        />
+        <span>{servico.nome}</span>
+        <span style={{
+          fontSize: '11px',
+          color: '#64748B',
+          marginLeft: 'auto'
+        }}>
+          {servico.duracao_minutos}min • R$ {(servico.preco || 0).toFixed(2).replace('.', ',')}
+        </span>
+      </label>
+    ))
+) : (
+  <div style={{
+    textAlign: 'center',
+    color: '#94A3B8',
+    fontSize: '12px',
+    padding: '16px 0'
+  }}>
+    {userProfile?.barbearia_id ? (
+      <>
+        📋 Nenhum serviço cadastrado ainda
+        <br />
+        Cadastre serviços na tela "Serviços" primeiro
+      </>
+    ) : (
+      'Carregando serviços...'
+    )}
+  </div>
+)}
           </div>
           
 <div style={{
@@ -7239,7 +7288,59 @@ const iniciarEdicaoHorarios = () => {
   setHorariosTemp([...horariosFuncionamento]);
   setEditandoHorarios(true);
 };
+const criarHorariosPadrao = async () => {
+  console.log('🕐 Criando horários padrão para barbearia:', userProfile?.barbearia_id);
+  
+  if (!userProfile?.barbearia_id) {
+    alert('Erro: ID da barbearia não encontrado');
+    return;
+  }
+  
+  setSalvandoHorarios(true);
+  try {
+    // Criar horários padrão para todos os dias da semana
+    const diasSemana = [
+      { nome: 'Segunda-feira', numero: 1 },
+      { nome: 'Terça-feira', numero: 2 },
+      { nome: 'Quarta-feira', numero: 3 },
+      { nome: 'Quinta-feira', numero: 4 },
+      { nome: 'Sexta-feira', numero: 5 },
+      { nome: 'Sábado', numero: 6 },
+      { nome: 'Domingo', numero: 0 }
+    ];
 
+    const horariosDefault = diasSemana.map(dia => ({
+      barbearia_id: userProfile.barbearia_id,
+      dia_semana: dia.nome,
+      dia_semana_numero: dia.numero,
+      hora_inicio_manha: '08:00:00',
+      hora_fim_manha: '12:00:00',
+      hora_inicio_tarde: '14:00:00',
+      hora_fim_tarde: '18:00:00',
+      ativo: dia.numero >= 1 && dia.numero <= 6 // Segunda a sábado ativo, domingo fechado
+    }));
+
+    console.log('📋 Horários que serão criados:', horariosDefault);
+
+    const { error } = await supabase
+      .from('horarios_funcionamento')
+      .insert(horariosDefault);
+      
+    if (error) throw error;
+    
+    // Recarregar dados
+    await loadData(false);
+    mostrarPopupSucesso('Horários padrão criados com sucesso! Agora você pode editá-los.');
+    
+    console.log('✅ Horários padrão criados com sucesso!');
+    
+  } catch (error) {
+    console.error('❌ Erro ao criar horários padrão:', error);
+    alert('Erro ao criar horários padrão: ' + error.message);
+  } finally {
+    setSalvandoHorarios(false);
+  }
+};
 const cancelarEdicaoHorarios = () => {
   setHorariosTemp([]);
   setEditandoHorarios(false);
@@ -7470,231 +7571,252 @@ const { error: updateError } = await supabase
           </div>
         </div>
 
-        {/* SEÇÃO HORÁRIOS DE FUNCIONAMENTO */}
-        <div style={{
-          background: '#FFFFFF',
-          border: '1px solid #F1F5F9',
-          borderRadius: '12px',
-          padding: '20px',
-          marginBottom: '20px'
+{/* SEÇÃO HORÁRIOS DE FUNCIONAMENTO */}
+<div style={{
+  background: '#FFFFFF', border: '1px solid #F1F5F9', borderRadius: '12px',
+  padding: '20px', marginBottom: '20px'
+}}>
+  <div style={{
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '16px'
+  }}>
+    <h3 style={{
+      fontSize: '16px',
+      fontWeight: '600',
+      color: '#1E293B',
+      margin: 0
+    }}>
+      🕐 Horários de Funcionamento
+    </h3>
+    
+    {!editandoHorarios && horariosFuncionamento.length > 0 && (
+      <button
+        onClick={iniciarEdicaoHorarios}
+        style={{
+          background: '#3B82F6',
+          color: 'white',
+          border: 'none',
+          borderRadius: '8px',
+          padding: '8px 16px',
+          fontSize: '12px',
+          fontWeight: '600',
+          cursor: 'pointer'
+        }}
+      >
+        ✏️ Editar
+      </button>
+    )}
+
+    {horariosFuncionamento.length === 0 && !editandoHorarios && (
+      <button
+        onClick={criarHorariosPadrao}
+        style={{
+          background: '#10B981',
+          color: 'white',
+          border: 'none',
+          borderRadius: '8px',
+          padding: '8px 16px',
+          fontSize: '12px',
+          fontWeight: '600',
+          cursor: 'pointer'
+        }}
+      >
+        ➕ Criar Horários
+      </button>
+    )}
+  </div>
+  
+  <p style={{
+    fontSize: '14px',
+    color: '#64748B',
+    margin: '0 0 16px 0'
+  }}>
+    {editandoHorarios ? 'Edite os horários e clique em salvar.' : 
+     horariosFuncionamento.length === 0 ? 'Nenhum horário cadastrado. Clique em "Criar Horários" para começar.' :
+     'Horários de funcionamento da barbearia.'}
+  </p>
+
+  {horariosFuncionamento.length > 0 ? (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '12px'
+    }}>
+      {(editandoHorarios ? horariosTemp : horariosFuncionamento).map((horario) => (
+        <div key={horario.id} style={{
+          background: horario.ativo ? '#F8FAFC' : '#FEE2E2',
+          borderRadius: '8px',
+          padding: '16px'
         }}>
           <div style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: '16px'
+            marginBottom: editandoHorarios ? '12px' : '0'
           }}>
-            <h3 style={{
-              fontSize: '16px',
+            <div style={{
+              fontSize: '14px',
               fontWeight: '600',
-              color: '#1E293B',
-              margin: 0
+              color: horario.ativo ? '#1E293B' : '#B91C1C',
+              minWidth: '80px'
             }}>
-              🕐 Horários de Funcionamento
-            </h3>
+              {horario.dia_semana}
+            </div>
             
-            {!editandoHorarios && (
-              <button
-                onClick={iniciarEdicaoHorarios}
-                style={{
-                  background: '#3B82F6',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '8px 16px',
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  cursor: 'pointer'
-                }}
-              >
-                ✏️ Editar
-              </button>
+            {editandoHorarios && (
+              <div>
+                <label style={{ fontSize: '12px', color: '#64748B', marginRight: '8px' }}>
+                  <input
+                    type="checkbox"
+                    checked={horario.ativo}
+                    onChange={(e) => atualizarHorarioTemp(horario.id, 'ativo', e.target.checked)}
+                    style={{ marginRight: '4px' }}
+                  />
+                  Aberto
+                </label>
+              </div>
             )}
           </div>
           
-          <p style={{
-            fontSize: '14px',
-            color: '#64748B',
-            margin: '0 0 16px 0'
-          }}>
-            {editandoHorarios ? 'Edite os horários e clique em salvar.' : 'Horários de funcionamento da barbearia.'}
-          </p>
-
-          {horariosFuncionamento.length > 0 ? (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px'
-            }}>
-              {(editandoHorarios ? horariosTemp : horariosFuncionamento).map((horario) => (
-                <div key={horario.id} style={{
-                  background: horario.ativo ? '#F8FAFC' : '#FEE2E2',
-                  borderRadius: '8px',
-                  padding: '16px'
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: editandoHorarios ? '12px' : '0'
-                  }}>
-                    <div style={{
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      color: horario.ativo ? '#1E293B' : '#B91C1C',
-                      minWidth: '80px'
-                    }}>
-                      {horario.dia_semana}
-                    </div>
-                    
-                    {editandoHorarios && (
-                      <div>
-                        <label style={{ fontSize: '12px', color: '#64748B', marginRight: '8px' }}>
-                          <input
-                            type="checkbox"
-                            checked={horario.ativo}
-                            onChange={(e) => atualizarHorarioTemp(horario.id, 'ativo', e.target.checked)}
-                            style={{ marginRight: '4px' }}
-                          />
-                          Aberto
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {horario.ativo ? (
-                    editandoHorarios ? (
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(2, 1fr)',
-                        gap: '12px'
-                      }}>
-                        <div>
-                          <label style={{ fontSize: '11px', color: '#64748B', display: 'block', marginBottom: '4px' }}>
-                            Manhã - Início
-                          </label>
-<CustomTimePicker
-                            value={horario.hora_inicio_manha?.substring(0, 5) || ''}
-                            onChange={(time) => atualizarHorarioTemp(horario.id, 'hora_inicio_manha', time)}
-                            label=""
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '11px', color: '#64748B', display: 'block', marginBottom: '4px' }}>
-                            Manhã - Fim
-                          </label>
-<CustomTimePicker
-                            value={horario.hora_fim_manha?.substring(0, 5) || ''}
-                            onChange={(time) => atualizarHorarioTemp(horario.id, 'hora_fim_manha', time)}
-                            label=""
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '11px', color: '#64748B', display: 'block', marginBottom: '4px' }}>
-                            Tarde - Início
-                          </label>
-<CustomTimePicker
-                            value={horario.hora_inicio_tarde?.substring(0, 5) || ''}
-                            onChange={(time) => atualizarHorarioTemp(horario.id, 'hora_inicio_tarde', time)}
-                            label=""
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '11px', color: '#64748B', display: 'block', marginBottom: '4px' }}>
-                            Tarde - Fim
-                          </label>
-<CustomTimePicker
-                            value={horario.hora_fim_tarde?.substring(0, 5) || ''}
-                            onChange={(time) => atualizarHorarioTemp(horario.id, 'hora_fim_tarde', time)}
-                            label=""
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{
-                        fontSize: '12px',
-                        color: '#64748B',
-                        display: 'flex',
-                        gap: '16px',
-                        alignItems: 'center'
-                      }}>
-                        <span>
-                          Manhã: {horario.hora_inicio_manha?.substring(0, 5)} - {horario.hora_fim_manha?.substring(0, 5)}
-                        </span>
-                        <span>
-                          Tarde: {horario.hora_inicio_tarde?.substring(0, 5)} - {horario.hora_fim_tarde?.substring(0, 5)}
-                        </span>
-                      </div>
-                    )
-                  ) : (
-                    !editandoHorarios && (
-                      <div style={{
-                        fontSize: '12px',
-                        color: '#B91C1C',
-                        fontWeight: '600'
-                      }}>
-                        FECHADO
-                      </div>
-                    )
-                  )}
+          {horario.ativo ? (
+            editandoHorarios ? (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: '12px'
+              }}>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#64748B', display: 'block', marginBottom: '4px' }}>
+                    Manhã - Início
+                  </label>
+                  <CustomTimePicker
+                    value={horario.hora_inicio_manha?.substring(0, 5) || ''}
+                    onChange={(time) => atualizarHorarioTemp(horario.id, 'hora_inicio_manha', time)}
+                    label=""
+                  />
                 </div>
-              ))}
-            </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#64748B', display: 'block', marginBottom: '4px' }}>
+                    Manhã - Fim
+                  </label>
+                  <CustomTimePicker
+                    value={horario.hora_fim_manha?.substring(0, 5) || ''}
+                    onChange={(time) => atualizarHorarioTemp(horario.id, 'hora_fim_manha', time)}
+                    label=""
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#64748B', display: 'block', marginBottom: '4px' }}>
+                    Tarde - Início
+                  </label>
+                  <CustomTimePicker
+                    value={horario.hora_inicio_tarde?.substring(0, 5) || ''}
+                    onChange={(time) => atualizarHorarioTemp(horario.id, 'hora_inicio_tarde', time)}
+                    label=""
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#64748B', display: 'block', marginBottom: '4px' }}>
+                    Tarde - Fim
+                  </label>
+                  <CustomTimePicker
+                    value={horario.hora_fim_tarde?.substring(0, 5) || ''}
+                    onChange={(time) => atualizarHorarioTemp(horario.id, 'hora_fim_tarde', time)}
+                    label=""
+                  />
+                </div>
+              </div>
+            ) : (
+              <div style={{
+                fontSize: '12px',
+                color: '#64748B',
+                display: 'flex',
+                gap: '16px',
+                alignItems: 'center'
+              }}>
+                <span>
+                  Manhã: {horario.hora_inicio_manha?.substring(0, 5)} - {horario.hora_fim_manha?.substring(0, 5)}
+                </span>
+                <span>
+                  Tarde: {horario.hora_inicio_tarde?.substring(0, 5)} - {horario.hora_fim_tarde?.substring(0, 5)}
+                </span>
+              </div>
+            )
           ) : (
-            <div style={{
-              background: '#FEF7ED',
-              borderRadius: '8px',
-              padding: '16px',
-              textAlign: 'center',
-              fontSize: '14px',
-              color: '#92400E'
-            }}>
-              ⚠️ Nenhum horário encontrado
-            </div>
+            !editandoHorarios && (
+              <div style={{
+                fontSize: '12px',
+                color: '#B91C1C',
+                fontWeight: '600'
+              }}>
+                FECHADO
+              </div>
+            )
           )}
+        </div>
+      ))}
+    </div>
+  ) : (
+    <div style={{
+      background: '#FEF7ED',
+      borderRadius: '8px',
+      padding: '16px',
+      textAlign: 'center',
+      fontSize: '14px',
+      color: '#92400E'
+    }}>
+      ⚠️ Nenhum horário encontrado
+      <br />
+      <span style={{ fontSize: '12px', marginTop: '4px', display: 'block' }}>
+        Clique em "Criar Horários" para definir os horários de funcionamento
+      </span>
+    </div>
+  )}
 
-          {editandoHorarios && (
-            <div style={{
-              display: 'flex',
-              gap: '12px',
-              marginTop: '16px'
-            }}>
-              <button
-                onClick={cancelarEdicaoHorarios}
-                style={{
-                  flex: 1,
-                  background: '#F8FAFC',
-                  color: '#64748B',
-                  border: '1px solid #E2E8F0',
-                  borderRadius: '8px',
-                  padding: '12px',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  cursor: 'pointer'
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={salvarHorarios}
-                disabled={salvandoHorarios}
-                style={{
-                  flex: 1,
-                  background: salvandoHorarios ? '#94A3B8' : '#10B981',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '12px',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  cursor: salvandoHorarios ? 'not-allowed' : 'pointer'
-                }}
-              >
-                {salvandoHorarios ? 'Salvando...' : 'Salvar Horários'}
-              </button>
-            </div>
-          )}
-          </div>
+  {editandoHorarios && (
+    <div style={{
+      display: 'flex',
+      gap: '12px',
+      marginTop: '16px'
+    }}>
+      <button
+        onClick={cancelarEdicaoHorarios}
+        style={{
+          flex: 1,
+          background: '#F8FAFC',
+          color: '#64748B',
+          border: '1px solid #E2E8F0',
+          borderRadius: '8px',
+          padding: '12px',
+          fontSize: '14px',
+          fontWeight: '600',
+          cursor: 'pointer'
+        }}
+      >
+        Cancelar
+      </button>
+      <button
+        onClick={salvarHorarios}
+        disabled={salvandoHorarios}
+        style={{
+          flex: 1,
+          background: salvandoHorarios ? '#94A3B8' : '#10B981',
+          color: 'white',
+          border: 'none',
+          borderRadius: '8px',
+          padding: '12px',
+          fontSize: '14px',
+          fontWeight: '600',
+          cursor: salvandoHorarios ? 'not-allowed' : 'pointer'
+        }}
+      >
+        {salvandoHorarios ? 'Salvando...' : 'Salvar Horários'}
+      </button>
+    </div>
+  )}
+</div>
         </div>
       </div>
   );
