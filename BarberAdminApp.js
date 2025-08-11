@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 
 import { supabase } from '../lib/supabase';
+import emailjs from '@emailjs/browser';
 // Função para obter data/hora no timezone de Brasília-SP - CORRIGIDA
 const getBrasiliaDate = () => {
   const now = new Date();
@@ -48,7 +49,50 @@ const getBrasiliaDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
+// 📧 CONFIGURAÇÃO DO EMAILJS
+const EMAILJS_CONFIG = {
+  SERVICE_ID: 'service_mf9o7yl',
+  TEMPLATE_ID: 'template_rumnodm',  
+  PUBLIC_KEY: 'Agv9ONoEJKpqVE7Oi'
+};
 
+// 📧 FUNÇÃO PARA ENVIAR EMAIL DE NOTIFICAÇÃO
+const enviarEmailNovaContaCriada = async (dadosUsuario) => {
+  try {
+    console.log('📧 Enviando email de nova conta criada...');
+    
+    const telefoneFormatado = dadosUsuario.telefone.replace(/\D/g, '');
+    const whatsappLink = `https://wa.me/55${telefoneFormatado}`;
+    
+    const templateParams = {
+      to_email: 'suportebookia@gmail.com',
+      user_name: dadosUsuario.nome_completo,
+      estabelecimento_nome: dadosUsuario.nome_estabelecimento,
+      user_email: dadosUsuario.email,
+      telefone: dadosUsuario.telefone,
+      whatsapp_link: whatsappLink,
+      tipo_pessoa: dadosUsuario.tipo_pessoa === 'fisica' ? 'Pessoa Física' : 'Pessoa Jurídica',
+      cpf_cnpj: dadosUsuario.cpf_cnpj,
+      barbearia_id: dadosUsuario.barbearia_id,
+      data_cadastro: new Date().toLocaleDateString('pt-BR'),
+      hora_cadastro: new Date().toLocaleTimeString('pt-BR')
+    };
+
+    const result = await emailjs.send(
+      EMAILJS_CONFIG.SERVICE_ID,
+      EMAILJS_CONFIG.TEMPLATE_ID,
+      templateParams,
+      EMAILJS_CONFIG.PUBLIC_KEY
+    );
+
+    console.log('✅ Email enviado com sucesso!', result);
+    return { success: true };
+    
+  } catch (error) {
+    console.error('❌ Erro ao enviar email:', error);
+    return { success: false, error: error.message };
+  }
+};
 // 🔐 CONTEXT DE AUTENTICAÇÃO
 const AuthContext = React.createContext();
 
@@ -293,6 +337,24 @@ const signUp = async (email, password, userData) => {
     // Definir o usuário como logado
     setUser(data.user);      
     console.log('✅ Usuário criado e logado com sucesso!');
+    
+    // 📧 ENVIAR EMAIL DE NOTIFICAÇÃO
+    console.log('📧 Iniciando envio de email de notificação...');
+    const emailResult = await enviarEmailNovaContaCriada({
+      nome_completo: userData.nome_completo,
+      nome_estabelecimento: userData.nome_estabelecimento,
+      email: email,
+      telefone: userData.telefone,
+      tipo_pessoa: userData.tipo_pessoa,
+      cpf_cnpj: userData.cpf_cnpj,
+      barbearia_id: novaBarbeariaId
+    });
+    
+    if (emailResult.success) {
+      console.log('✅ Email de notificação enviado com sucesso!');
+    } else {
+      console.log('⚠️ Erro ao enviar email (não crítico):', emailResult.error);
+    }
     
     return { success: true };
   } catch (error) {
@@ -545,26 +607,218 @@ const LoginScreen = () => {
 
 // 🔐 TELA DE CADASTRO
 const RegisterScreen = ({ onBack }) => {
-  const [formData, setFormData] = useState({
+const [formData, setFormData] = useState({
     nome_completo: '',
+    nome_estabelecimento: '',
     email: '',
     telefone: '',
+    tipo_pessoa: '', // 'fisica' ou 'juridica'
+    cpf_cnpj: '',
     password: '',
     confirmPassword: ''
   });
   const [appLoading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [senhaErrors, setSenhaErrors] = useState([]);
   const { signUp } = useAuth();
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // Limpar CPF/CNPJ quando mudar tipo de pessoa
+    if (field === 'tipo_pessoa') {
+      setFormData(prev => ({ ...prev, cpf_cnpj: '' }));
+    }
+    
+    // Validar senha em tempo real
+    if (field === 'password') {
+      validarSenhaForte(value);
+    }
+  };
+// 🔒 VALIDAÇÃO DE SENHA FORTE
+  const validarSenhaForte = (senha) => {
+    const errors = [];
+    
+    if (senha.length < 6) {
+      errors.push('Mínimo 6 caracteres');
+    }
+    
+    if (senha.length < 8) {
+      errors.push('Recomendado: mínimo 8 caracteres');
+    }
+    
+    // Verificar se não é uma sequência simples
+    const sequenciasSimples = [
+      '123456', '654321', '111111', '000000', '999999',
+      'abcdef', 'qwerty', '123abc', 'abc123', 'password',
+      'senha123', '123senha', 'admin123', '123admin'
+    ];
+    
+    if (sequenciasSimples.some(seq => senha.toLowerCase().includes(seq))) {
+      errors.push('Não use sequências simples (123456, abc123, etc.)');
+    }
+    
+    // Verificar se tem pelo menos uma letra
+    if (!/[a-zA-Z]/.test(senha)) {
+      errors.push('Deve conter pelo menos uma letra');
+    }
+    
+    // Verificar se tem pelo menos um número
+    if (!/[0-9]/.test(senha)) {
+      errors.push('Deve conter pelo menos um número');
+    }
+    
+    // Verificar se não é muito repetitiva
+    const caracteresUnicos = new Set(senha.toLowerCase()).size;
+    if (caracteresUnicos < senha.length / 2) {
+      errors.push('Muitos caracteres repetidos');
+    }
+    
+    setSenhaErrors(errors);
+    return errors.length === 0;
   };
 
-  const handleRegister = async (e) => {
+  // 📱 FORMATAÇÃO DE TELEFONE
+  const formatarTelefone = (valor) => {
+    const numeros = valor.replace(/\D/g, '');
+    if (numeros.length <= 11) {
+      return numeros.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+    }
+    return valor;
+  };
+
+  // 🆔 FORMATAÇÃO DE CPF
+  const formatarCPF = (valor) => {
+    const numeros = valor.replace(/\D/g, '');
+    if (numeros.length <= 11) {
+      return numeros.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    }
+    return valor;
+  };
+
+  // 🏢 FORMATAÇÃO DE CNPJ
+  const formatarCNPJ = (valor) => {
+    const numeros = valor.replace(/\D/g, '');
+    if (numeros.length <= 14) {
+      return numeros.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+    }
+    return valor;
+  };
+
+  // 🔍 VALIDAÇÃO DE CPF
+  const validarCPF = (cpf) => {
+    const numeros = cpf.replace(/\D/g, '');
+    if (numeros.length !== 11) return false;
+    
+    // Verificar se todos os dígitos são iguais
+    if (/^(\d)\1{10}$/.test(numeros)) return false;
+    
+    // Algoritmo de validação do CPF
+    let soma = 0;
+    for (let i = 0; i < 9; i++) {
+      soma += parseInt(numeros.charAt(i)) * (10 - i);
+    }
+    let resto = 11 - (soma % 11);
+    if (resto === 10 || resto === 11) resto = 0;
+    if (resto !== parseInt(numeros.charAt(9))) return false;
+    
+    soma = 0;
+    for (let i = 0; i < 10; i++) {
+      soma += parseInt(numeros.charAt(i)) * (11 - i);
+    }
+    resto = 11 - (soma % 11);
+    if (resto === 10 || resto === 11) resto = 0;
+    if (resto !== parseInt(numeros.charAt(10))) return false;
+    
+    return true;
+  };
+
+  // 🔍 VALIDAÇÃO DE CNPJ
+  const validarCNPJ = (cnpj) => {
+    const numeros = cnpj.replace(/\D/g, '');
+    if (numeros.length !== 14) return false;
+    
+    // Verificar se todos os dígitos são iguais
+    if (/^(\d)\1{13}$/.test(numeros)) return false;
+    
+    // Algoritmo de validação do CNPJ
+    let tamanho = numeros.length - 2;
+    let numeros_para_calculo = numeros.substring(0, tamanho);
+    let digitos = numeros.substring(tamanho);
+    let soma = 0;
+    let pos = tamanho - 7;
+    
+    for (let i = tamanho; i >= 1; i--) {
+      soma += numeros_para_calculo.charAt(tamanho - i) * pos--;
+      if (pos < 2) pos = 9;
+    }
+    
+    let resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
+    if (resultado !== parseInt(digitos.charAt(0))) return false;
+    
+    tamanho = tamanho + 1;
+    numeros_para_calculo = numeros.substring(0, tamanho);
+    soma = 0;
+    pos = tamanho - 7;
+    
+    for (let i = tamanho; i >= 1; i--) {
+      soma += numeros_para_calculo.charAt(tamanho - i) * pos--;
+      if (pos < 2) pos = 9;
+    }
+    
+    resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
+    if (resultado !== parseInt(digitos.charAt(1))) return false;
+    
+    return true;
+  };
+const handleRegister = async (e) => {
     e.preventDefault();
     
-    if (!formData.nome_completo.trim() || !formData.email.trim() || !formData.password.trim()) {
-      alert('Preencha todos os campos obrigatórios');
+    // Validações
+    if (!formData.nome_completo.trim()) {
+      alert('Nome completo é obrigatório');
+      return;
+    }
+
+    if (!formData.nome_estabelecimento.trim()) {
+      alert('Nome do estabelecimento é obrigatório');
+      return;
+    }
+
+    if (!formData.email.trim()) {
+      alert('Email é obrigatório');
+      return;
+    }
+
+    if (!formData.telefone.trim()) {
+      alert('Telefone é obrigatório');
+      return;
+    }
+
+    if (!formData.tipo_pessoa) {
+      alert('Selecione o tipo de pessoa');
+      return;
+    }
+
+    if (!formData.cpf_cnpj.trim()) {
+      const tipoDoc = formData.tipo_pessoa === 'fisica' ? 'CPF' : 'CNPJ';
+      alert(`${tipoDoc} é obrigatório`);
+      return;
+    }
+
+    // Validar CPF ou CNPJ
+    if (formData.tipo_pessoa === 'fisica' && !validarCPF(formData.cpf_cnpj)) {
+      alert('CPF inválido');
+      return;
+    }
+
+    if (formData.tipo_pessoa === 'juridica' && !validarCNPJ(formData.cpf_cnpj)) {
+      alert('CNPJ inválido');
+      return;
+    }
+
+    if (!validarSenhaForte(formData.password)) {
+      alert('Senha não atende aos critérios de segurança');
       return;
     }
 
@@ -573,16 +827,14 @@ const RegisterScreen = ({ onBack }) => {
       return;
     }
 
-    if (formData.password.length < 6) {
-      alert('A senha deve ter pelo menos 6 caracteres');
-      return;
-    }
-
    setLoading(true);
     
     const result = await signUp(formData.email, formData.password, {
       nome_completo: formData.nome_completo,
-      telefone: formData.telefone
+      nome_estabelecimento: formData.nome_estabelecimento,
+      telefone: formData.telefone,
+      tipo_pessoa: formData.tipo_pessoa,
+      cpf_cnpj: formData.cpf_cnpj.replace(/\D/g, '') // Salvar só números
     });
     
     if (result.success) {
@@ -649,8 +901,9 @@ const RegisterScreen = ({ onBack }) => {
           </div>
         </div>
 
-        {/* Formulário */}
+    {/* Formulário */}
         <form onSubmit={handleRegister}>
+          {/* Nome Completo */}
           <div style={{ marginBottom: '16px' }}>
             <label style={{
               fontSize: '14px',
@@ -681,6 +934,38 @@ const RegisterScreen = ({ onBack }) => {
             />
           </div>
 
+          {/* Nome do Estabelecimento */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{
+              fontSize: '14px',
+              fontWeight: '600',
+              color: '#374151',
+              marginBottom: '6px',
+              display: 'block'
+            }}>
+              Nome do Estabelecimento *
+            </label>
+            <input
+              type="text"
+              value={formData.nome_estabelecimento}
+              onChange={(e) => handleInputChange('nome_estabelecimento', e.target.value)}
+              placeholder="Ex: Barbearia Elite, Salão do João..."
+              style={{
+                width: '100%',
+                padding: '14px',
+                border: '2px solid #F1F5F9',
+                borderRadius: '10px',
+                fontSize: '16px',
+                outline: 'none',
+                transition: 'border-color 0.2s',
+                boxSizing: 'border-box'
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#FF6B35'}
+              onBlur={(e) => e.target.style.borderColor = '#F1F5F9'}
+            />
+          </div>
+
+          {/* Email */}
           <div style={{ marginBottom: '16px' }}>
             <label style={{
               fontSize: '14px',
@@ -711,6 +996,7 @@ const RegisterScreen = ({ onBack }) => {
             />
           </div>
 
+          {/* Telefone */}
           <div style={{ marginBottom: '16px' }}>
             <label style={{
               fontSize: '14px',
@@ -719,13 +1005,14 @@ const RegisterScreen = ({ onBack }) => {
               marginBottom: '6px',
               display: 'block'
             }}>
-              Telefone
+              Telefone *
             </label>
             <input
               type="tel"
               value={formData.telefone}
-              onChange={(e) => handleInputChange('telefone', e.target.value)}
+              onChange={(e) => handleInputChange('telefone', formatarTelefone(e.target.value))}
               placeholder="(00) 00000-0000"
+              maxLength="15"
               style={{
                 width: '100%',
                 padding: '14px',
@@ -741,6 +1028,103 @@ const RegisterScreen = ({ onBack }) => {
             />
           </div>
 
+          {/* Tipo de Pessoa */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{
+              fontSize: '14px',
+              fontWeight: '600',
+              color: '#374151',
+              marginBottom: '6px',
+              display: 'block'
+            }}>
+              Tipo de Pessoa *
+            </label>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <label style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                padding: '12px',
+                border: `2px solid ${formData.tipo_pessoa === 'fisica' ? '#FF6B35' : '#F1F5F9'}`,
+                borderRadius: '10px',
+                cursor: 'pointer',
+                background: formData.tipo_pessoa === 'fisica' ? '#FFF7F5' : '#FFFFFF',
+                transition: 'all 0.2s'
+              }}>
+                <input
+                  type="radio"
+                  name="tipo_pessoa"
+                  value="fisica"
+                  checked={formData.tipo_pessoa === 'fisica'}
+                  onChange={(e) => handleInputChange('tipo_pessoa', e.target.value)}
+                  style={{ marginRight: '8px' }}
+                />
+                <span style={{ fontSize: '14px', fontWeight: '500' }}>👤 Pessoa Física</span>
+              </label>
+              <label style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                padding: '12px',
+                border: `2px solid ${formData.tipo_pessoa === 'juridica' ? '#FF6B35' : '#F1F5F9'}`,
+                borderRadius: '10px',
+                cursor: 'pointer',
+                background: formData.tipo_pessoa === 'juridica' ? '#FFF7F5' : '#FFFFFF',
+                transition: 'all 0.2s'
+              }}>
+                <input
+                  type="radio"
+                  name="tipo_pessoa"
+                  value="juridica"
+                  checked={formData.tipo_pessoa === 'juridica'}
+                  onChange={(e) => handleInputChange('tipo_pessoa', e.target.value)}
+                  style={{ marginRight: '8px' }}
+                />
+                <span style={{ fontSize: '14px', fontWeight: '500' }}>🏢 Pessoa Jurídica</span>
+              </label>
+            </div>
+          </div>
+
+          {/* CPF/CNPJ */}
+          {formData.tipo_pessoa && (
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{
+                fontSize: '14px',
+                fontWeight: '600',
+                color: '#374151',
+                marginBottom: '6px',
+                display: 'block'
+              }}>
+                {formData.tipo_pessoa === 'fisica' ? 'CPF *' : 'CNPJ *'}
+              </label>
+              <input
+                type="text"
+                value={formData.cpf_cnpj}
+                onChange={(e) => {
+                  const valor = formData.tipo_pessoa === 'fisica' 
+                    ? formatarCPF(e.target.value) 
+                    : formatarCNPJ(e.target.value);
+                  handleInputChange('cpf_cnpj', valor);
+                }}
+                placeholder={formData.tipo_pessoa === 'fisica' ? '000.000.000-00' : '00.000.000/0000-00'}
+                maxLength={formData.tipo_pessoa === 'fisica' ? '14' : '18'}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  border: '2px solid #F1F5F9',
+                  borderRadius: '10px',
+                  fontSize: '16px',
+                  outline: 'none',
+                  transition: 'border-color 0.2s',
+                  boxSizing: 'border-box'
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#FF6B35'}
+                onBlur={(e) => e.target.style.borderColor = '#F1F5F9'}
+              />
+            </div>
+          )}
+
+          {/* Senha */}
           <div style={{ marginBottom: '16px' }}>
             <label style={{
               fontSize: '14px',
@@ -756,12 +1140,12 @@ const RegisterScreen = ({ onBack }) => {
                 type={showPassword ? 'text' : 'password'}
                 value={formData.password}
                 onChange={(e) => handleInputChange('password', e.target.value)}
-                placeholder="Mínimo 6 caracteres"
+                placeholder="Crie uma senha forte"
                 style={{
                   width: '100%',
                   padding: '14px',
                   paddingRight: '50px',
-                  border: '2px solid #F1F5F9',
+                  border: `2px solid ${senhaErrors.length === 0 && formData.password ? '#10B981' : '#F1F5F9'}`,
                   borderRadius: '10px',
                   fontSize: '16px',
                   outline: 'none',
@@ -769,7 +1153,7 @@ const RegisterScreen = ({ onBack }) => {
                   boxSizing: 'border-box'
                 }}
                 onFocus={(e) => e.target.style.borderColor = '#FF6B35'}
-                onBlur={(e) => e.target.style.borderColor = '#F1F5F9'}
+                onBlur={(e) => e.target.style.borderColor = senhaErrors.length === 0 && formData.password ? '#10B981' : '#F1F5F9'}
               />
               <button
                 type="button"
@@ -788,8 +1172,25 @@ const RegisterScreen = ({ onBack }) => {
                 {showPassword ? '🙈' : '👁️'}
               </button>
             </div>
+            
+            {/* Indicadores de Força da Senha */}
+            {formData.password && (
+              <div style={{ marginTop: '8px' }}>
+                <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '4px', color: senhaErrors.length === 0 ? '#10B981' : '#EF4444' }}>
+                  {senhaErrors.length === 0 ? '✅ Senha forte!' : '⚠️ Critérios de segurança:'}
+                </div>
+                {senhaErrors.length > 0 && (
+                  <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '11px', color: '#EF4444' }}>
+                    {senhaErrors.map((error, index) => (
+                      <li key={index}>{error}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
 
+          {/* Confirmar Senha */}
           <div style={{ marginBottom: '24px' }}>
             <label style={{
               fontSize: '14px',
@@ -808,7 +1209,7 @@ const RegisterScreen = ({ onBack }) => {
               style={{
                 width: '100%',
                 padding: '14px',
-                border: '2px solid #F1F5F9',
+                border: `2px solid ${formData.confirmPassword && formData.password === formData.confirmPassword ? '#10B981' : '#F1F5F9'}`,
                 borderRadius: '10px',
                 fontSize: '16px',
                 outline: 'none',
@@ -816,23 +1217,33 @@ const RegisterScreen = ({ onBack }) => {
                 boxSizing: 'border-box'
               }}
               onFocus={(e) => e.target.style.borderColor = '#FF6B35'}
-              onBlur={(e) => e.target.style.borderColor = '#F1F5F9'}
+              onBlur={(e) => e.target.style.borderColor = formData.confirmPassword && formData.password === formData.confirmPassword ? '#10B981' : '#F1F5F9'}
             />
+            {formData.confirmPassword && formData.password !== formData.confirmPassword && (
+              <div style={{ fontSize: '11px', color: '#EF4444', marginTop: '4px' }}>
+                ❌ As senhas não coincidem
+              </div>
+            )}
+            {formData.confirmPassword && formData.password === formData.confirmPassword && (
+              <div style={{ fontSize: '11px', color: '#10B981', marginTop: '4px' }}>
+                ✅ Senhas coincidem
+              </div>
+            )}
           </div>
 
           <button
             type="submit"
-            disabled={appLoading}
+            disabled={appLoading || senhaErrors.length > 0}
             style={{
               width: '100%',
-              background: appLoading ? '#94A3B8' : '#10B981',
+              background: (appLoading || senhaErrors.length > 0) ? '#94A3B8' : '#10B981',
               color: 'white',
               border: 'none',
               borderRadius: '12px',
               padding: '16px',
               fontSize: '16px',
               fontWeight: '600',
-              cursor: appLoading ? 'not-allowed' : 'pointer',
+              cursor: (appLoading || senhaErrors.length > 0) ? 'not-allowed' : 'pointer',
               transition: 'all 0.2s'
             }}
           >
