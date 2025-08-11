@@ -93,8 +93,6 @@ const enviarEmailNovaContaCriada = async (dadosUsuario) => {
     return { success: false, error: error.message };
   }
 };
-
-
 // 🔐 CONTEXT DE AUTENTICAÇÃO
 const AuthContext = React.createContext();
 
@@ -1815,37 +1813,7 @@ const loadData = useCallback(async (showLoadingState = false) => {
       setMinAgendamentosAtivo(parseInt(configData.valor) || 3);
       console.log('✅ Configuração carregada:', configData.valor);
     }
-// Função para corrigir tipos de dados nos horários
-async function corrigirTiposHorarios() {
-  try {
-    console.log('🔧 Corrigindo tipos de dados nos horários...');
     
-    for (const horario of horariosFuncionamento) {
-      if (typeof horario.dia_semana_numero === 'string') {
-        const { error } = await supabase
-          .from('horarios_funcionamento')
-          .update({
-            dia_semana_numero: parseInt(horario.dia_semana_numero)
-          })
-          .eq('id', horario.id)
-          .eq('barbearia_id', userProfile?.barbearia_id);
-        
-        if (error) {
-          console.error('Erro ao corrigir horário:', error);
-        } else {
-          console.log(`✅ Horário ${horario.dia_semana} corrigido`);
-        }
-      }
-    }
-    
-    // Recarregar horários após correção
-    await loadData(false);
-    console.log('✅ Tipos de dados corrigidos!');
-    
-  } catch (error) {
-    console.error('❌ Erro ao corrigir tipos:', error);
-  }
-}  
 // Carregar horários APENAS desta barbearia
 const { data: horariosData, error: horariosError } = await supabase
   .from('horarios_funcionamento')
@@ -2238,13 +2206,6 @@ useEffect(() => {
     
     // Depois verificar notificações perdidas
     await verificarAgendamentosNaoNotificados();
-    
-    // Corrigir tipos de dados se necessário (apenas uma vez por sessão)
-    const jaCorrigiu = sessionStorage.getItem('tipos-corrigidos-' + userProfile.barbearia_id);
-    if (!jaCorrigiu) {
-      await corrigirTiposHorarios();
-      sessionStorage.setItem('tipos-corrigidos-' + userProfile.barbearia_id, 'true');
-    }
   };
   
   inicializarApp();
@@ -7513,7 +7474,6 @@ const atualizarHorarioTemp = (id, campo, valor) => {
     h.id === id ? { ...h, [campo]: valor } : h
   ));
 };
-
 
   const salvarConfiguracao = async () => {
     setSalvando(true);
