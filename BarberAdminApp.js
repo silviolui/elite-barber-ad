@@ -93,6 +93,8 @@ const enviarEmailNovaContaCriada = async (dadosUsuario) => {
     return { success: false, error: error.message };
   }
 };
+
+
 // 🔐 CONTEXT DE AUTENTICAÇÃO
 const AuthContext = React.createContext();
 
@@ -300,16 +302,16 @@ const perfilData = {
         { nome: 'Domingo', numero: 0 }
       ];
 
-      const horariosDefault = diasSemana.map(dia => ({
-        barbearia_id: novaBarbeariaId,
-        dia_semana: dia.nome,
-        dia_semana_numero: dia.numero,
-        hora_inicio_manha: '08:00:00',
-        hora_fim_manha: '12:00:00',
-        hora_inicio_tarde: '14:00:00',
-        hora_fim_tarde: '18:00:00',
-        ativo: dia.numero >= 1 && dia.numero <= 6
-      }));
+const horariosDefault = diasSemana.map(dia => ({
+      barbearia_id: userProfile.barbearia_id,
+      dia_semana: dia.nome,
+      dia_semana_numero: parseInt(dia.numero), // Garantir que seja número
+      hora_inicio_manha: '08:00:00',
+      hora_fim_manha: '12:00:00',
+      hora_inicio_tarde: '14:00:00',
+      hora_fim_tarde: '18:00:00',
+      ativo: dia.numero >= 1 && dia.numero <= 6 // Segunda a sábado ativo, domingo fechado
+    }));
 
       const { error: horariosError } = await supabase
         .from('horarios_funcionamento')
@@ -1813,8 +1815,37 @@ const loadData = useCallback(async (showLoadingState = false) => {
       setMinAgendamentosAtivo(parseInt(configData.valor) || 3);
       console.log('✅ Configuração carregada:', configData.valor);
     }
+// Função para corrigir tipos de dados nos horários
+async function corrigirTiposHorarios() {
+  try {
+    console.log('🔧 Corrigindo tipos de dados nos horários...');
     
-    // Carregar horários APENAS desta barbearia
+    for (const horario of horariosFuncionamento) {
+      if (typeof horario.dia_semana_numero === 'string') {
+        const { error } = await supabase
+          .from('horarios_funcionamento')
+          .update({
+            dia_semana_numero: parseInt(horario.dia_semana_numero)
+          })
+          .eq('id', horario.id)
+          .eq('barbearia_id', userProfile?.barbearia_id);
+        
+        if (error) {
+          console.error('Erro ao corrigir horário:', error);
+        } else {
+          console.log(`✅ Horário ${horario.dia_semana} corrigido`);
+        }
+      }
+    }
+    
+    // Recarregar horários após correção
+    await loadData(false);
+    console.log('✅ Tipos de dados corrigidos!');
+    
+  } catch (error) {
+    console.error('❌ Erro ao corrigir tipos:', error);
+  }
+}  
 // Carregar horários APENAS desta barbearia
 const { data: horariosData, error: horariosError } = await supabase
   .from('horarios_funcionamento')
@@ -1826,7 +1857,29 @@ if (horariosError) {
   console.log('⚠️ Erro ao carregar horários:', horariosError);
   setHorariosFuncionamento([]);
 } else {
-  console.log('✅ Horários carregados para barbearia:', userProfile.barbearia_id, horariosData);
+  console.log('✅ Horários carregados para barbearia:', userProfile.barbearia_id);
+  console.log('📋 Quantidade de horários:', horariosData?.length || 0);
+  console.log('📋 Dados dos horários:', horariosData);
+  
+  // Debug detalhado de cada horário
+  if (horariosData && horariosData.length > 0) {
+    horariosData.forEach((horario, index) => {
+      console.log(`📋 Horário ${index}:`, {
+        id: horario.id,
+        dia_semana: horario.dia_semana,
+        dia_semana_numero: horario.dia_semana_numero,
+        barbearia_id: horario.barbearia_id,
+        ativo: horario.ativo,
+        hora_inicio_manha: horario.hora_inicio_manha,
+        hora_fim_manha: horario.hora_fim_manha,
+        hora_inicio_tarde: horario.hora_inicio_tarde,
+        hora_fim_tarde: horario.hora_fim_tarde
+      });
+    });
+  } else {
+    console.log('⚠️ Nenhum horário encontrado para a barbearia:', userProfile.barbearia_id);
+  }
+  
   setHorariosFuncionamento(horariosData || []);
 }
     
@@ -2185,6 +2238,13 @@ useEffect(() => {
     
     // Depois verificar notificações perdidas
     await verificarAgendamentosNaoNotificados();
+    
+    // Corrigir tipos de dados se necessário (apenas uma vez por sessão)
+    const jaCorrigiu = sessionStorage.getItem('tipos-corrigidos-' + userProfile.barbearia_id);
+    if (!jaCorrigiu) {
+      await corrigirTiposHorarios();
+      sessionStorage.setItem('tipos-corrigidos-' + userProfile.barbearia_id, 'true');
+    }
   };
   
   inicializarApp();
@@ -2277,18 +2337,30 @@ useEffect(() => {
     
     console.log('🔄 Serviços mudaram, recalculando horários...');
     console.log('📋 Serviços selecionados:', dadosAgendamento.servicos_selecionados);
+    console.log('📋 Barbeiro:', dadosAgendamento.barbeiro_selecionado);
+    console.log('📅 Data:', dadosAgendamento.data_agendamento);
     
     // Limpar horário selecionado atual
     setHorarioSelecionado('');
     
-    // Recalcular horários disponíveis
-    calcularHorariosDisponiveis(
-      dadosAgendamento.barbeiro_selecionado, 
-      dadosAgendamento.data_agendamento
-    );
+    // Aguardar um pouco para garantir que o estado foi atualizado
+    setTimeout(() => {
+      // Recalcular horários disponíveis
+      calcularHorariosDisponiveis(
+        dadosAgendamento.barbeiro_selecionado, 
+        dadosAgendamento.data_agendamento
+      );
+    }, 100);
+  } else {
+    console.log('🔄 Limpando horários - dados incompletos:', {
+      barbeiro: dadosAgendamento.barbeiro_selecionado,
+      data: dadosAgendamento.data_agendamento,
+      servicos: dadosAgendamento.servicos_selecionados.length
+    });
+    setHorariosDisponiveis([]);
   }
 // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [dadosAgendamento.servicos_selecionados]);
+}, [dadosAgendamento.servicos_selecionados, dadosAgendamento.barbeiro_selecionado, dadosAgendamento.data_agendamento]);
 // 🎁 IDENTIFICAR SE É COMBO E QUAL TIPO
 const identificarTipoCombo = (servicoNome) => {
   if (!servicoNome) return null;
@@ -3010,22 +3082,67 @@ const calcularHorariosDisponiveis = (barbeiro_id, data_selecionada) => {
     console.log('⏰ Horário mínimo para agendamento:', `${Math.floor(horarioMinimo / 60)}:${(horarioMinimo % 60).toString().padStart(2, '0')}`);
   }
 
-  // Obter horário do dia da semana selecionado
+// Obter horário do dia da semana selecionado
   const dataSelecionada = new Date(data_selecionada + 'T00:00:00');
   const diaSemana = dataSelecionada.getDay(); // 0 = Domingo, 1 = Segunda, etc.
 
-  console.log('📅 Dia da semana:', diaSemana);
+  console.log('📅 Dia da semana calculado:', diaSemana);
   console.log('📋 Horários funcionamento disponíveis:', horariosFuncionamento.length);
+  console.log('🔍 Todos os horários funcionamento:', horariosFuncionamento);
+  console.log('🔍 Filtros de busca:', {
+    diaSemana,
+    barbearia_id: userProfile?.barbearia_id
+  });
 
-  const horarioDia = horariosFuncionamento.find(h => 
-    h.dia_semana_numero === diaSemana && 
-    h.barbearia_id === userProfile?.barbearia_id
-  );
+  // Debug mais detalhado dos horários
+  horariosFuncionamento.forEach((h, index) => {
+    console.log(`🔍 Horário ${index}:`, {
+      id: h.id,
+      dia_semana: h.dia_semana,
+      dia_semana_numero: h.dia_semana_numero,
+      barbearia_id: h.barbearia_id,
+      ativo: h.ativo,
+      match_dia: h.dia_semana_numero === diaSemana,
+      match_barbearia: h.barbearia_id === userProfile?.barbearia_id
+    });
+  });
+
+const horarioDia = horariosFuncionamento.find(h => {
+    // Converter dia_semana_numero para number para comparar corretamente
+    const diaNumero = parseInt(h.dia_semana_numero);
+    const matchDia = diaNumero === diaSemana;
+    const matchBarbearia = h.barbearia_id === userProfile?.barbearia_id;
+    
+    console.log(`🔍 Verificando horário ${h.dia_semana}:`, {
+      dia_semana_numero_original: h.dia_semana_numero,
+      dia_semana_numero_convertido: diaNumero,
+      diaSemana,
+      matchDia,
+      barbearia_id: h.barbearia_id,
+      userProfile_barbearia_id: userProfile?.barbearia_id,
+      matchBarbearia,
+      final: matchDia && matchBarbearia
+    });
+    
+    return matchDia && matchBarbearia;
+  });
 
   console.log('📋 Horário encontrado para o dia:', horarioDia);
+if (!horarioDia) {
+    console.log('🔒 Nenhum horário configurado para este dia da semana');
+    console.log('🔍 Dia da semana procurado:', diaSemana);
+    console.log('🔍 Horários disponíveis:', horariosFuncionamento.map(h => ({
+      dia_semana: h.dia_semana,
+      dia_semana_numero: h.dia_semana_numero,
+      ativo: h.ativo
+    })));
+    setHorariosDisponiveis([]);
+    return;
+  }
 
-  if (!horarioDia || !horarioDia.ativo) {
+  if (!horarioDia.ativo) {
     console.log('🔒 Barbearia fechada neste dia');
+    console.log('🔍 Status do horário:', horarioDia.ativo);
     setHorariosDisponiveis([]);
     return;
   }
@@ -3131,6 +3248,19 @@ const calcularHorariosDisponiveis = (barbeiro_id, data_selecionada) => {
 
   console.log('⏰ Slots disponíveis calculados:', slotsDisponiveis.length);
   console.log('📋 Lista de slots:', slotsDisponiveis);
+  console.log('🔍 === DEBUG DETALHADO ===');
+  console.log('🏢 Barbearia ID:', userProfile?.barbearia_id);
+  console.log('👨‍💼 Barbeiro ID:', barbeiro_id);
+  console.log('📅 Data:', data_selecionada);
+  console.log('📋 Horários funcionamento total:', horariosFuncionamento.length);
+  console.log('📋 Horário encontrado:', horarioDia);
+  console.log('📋 Períodos:', periodos);
+  console.log('⏱️ Duração total:', duracaoTotal);
+  console.log('📋 Agendamentos existentes:', agendamentos.filter(a => 
+    a.barbeiro_id === barbeiro_id && 
+    a.data_agendamento === data_selecionada && 
+    a.barbearia_id === userProfile?.barbearia_id
+  ).length);
   setHorariosDisponiveis(slotsDisponiveis);
 };
 // Carregar serviços disponíveis
@@ -7309,17 +7439,16 @@ const criarHorariosPadrao = async () => {
       { nome: 'Domingo', numero: 0 }
     ];
 
-    const horariosDefault = diasSemana.map(dia => ({
+const horariosDefault = diasSemana.map(dia => ({
       barbearia_id: userProfile.barbearia_id,
       dia_semana: dia.nome,
-      dia_semana_numero: dia.numero,
+      dia_semana_numero: parseInt(dia.numero), // Garantir que seja número
       hora_inicio_manha: '08:00:00',
       hora_fim_manha: '12:00:00',
       hora_inicio_tarde: '14:00:00',
       hora_fim_tarde: '18:00:00',
       ativo: dia.numero >= 1 && dia.numero <= 6 // Segunda a sábado ativo, domingo fechado
     }));
-
     console.log('📋 Horários que serão criados:', horariosDefault);
 
     const { error } = await supabase
@@ -7384,6 +7513,8 @@ const atualizarHorarioTemp = (id, campo, valor) => {
     h.id === id ? { ...h, [campo]: valor } : h
   ));
 };
+
+
   const salvarConfiguracao = async () => {
     setSalvando(true);
     try {
@@ -11805,8 +11936,44 @@ const ComingSoonScreen = ({ title }) => (
           }}
         />
       </div>
-{/* Data - só mostra depois de selecionar barbeiro */}
-      {dadosAgendamento.barbeiro_selecionado && (
+{/* Serviços - MOVIDO PARA CIMA */}
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ fontSize: '12px', color: '#64748B', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+          Selecionar Serviços *
+        </label>
+        <div style={{ maxHeight: '150px', overflow: 'auto', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '8px' }}>
+          {servicosDisponiveis.map((servico) => (
+            <label key={servico.id} style={{
+              display: 'flex', alignItems: 'center', gap: '8px', padding: '6px',
+              cursor: 'pointer', borderRadius: '4px', marginBottom: '4px'
+            }}>
+              <input
+                type="checkbox"
+                checked={dadosAgendamento.servicos_selecionados.includes(servico.id)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setDadosAgendamento(prev => ({
+                      ...prev,
+                      servicos_selecionados: [...prev.servicos_selecionados, servico.id]
+                    }));
+                  } else {
+                    setDadosAgendamento(prev => ({
+                      ...prev,
+                      servicos_selecionados: prev.servicos_selecionados.filter(id => id !== servico.id)
+                    }));
+                  }
+                }}
+              />
+              <span style={{ fontSize: '14px', color: '#1E293B' }}>
+                {servico.nome} - R$ {formatCurrency(servico.preco)}
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Data - só mostra depois de selecionar barbeiro E serviços */}
+      {dadosAgendamento.barbeiro_selecionado && dadosAgendamento.servicos_selecionados.length > 0 && (
        <CustomDatePicker
           value={dadosAgendamento.data_agendamento}
           onChange={(novaData) => {
@@ -11821,8 +11988,8 @@ const ComingSoonScreen = ({ title }) => (
         />
       )}
 
-{/* Horários - só mostra depois de selecionar data */}
-      {dadosAgendamento.data_agendamento && (
+{/* Horários - só mostra depois de selecionar data E serviços */}
+      {dadosAgendamento.data_agendamento && dadosAgendamento.servicos_selecionados.length > 0 && (
         <div style={{ marginBottom: '16px' }}>
           <label style={{ fontSize: '12px', color: '#64748B', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
             Selecionar Horário *
@@ -11873,46 +12040,13 @@ const ComingSoonScreen = ({ title }) => (
               <p style={{ fontSize: '14px', color: '#B91C1C', margin: 0, fontWeight: '500' }}>
                 Nenhum horário disponível para esta data
               </p>
+              <p style={{ fontSize: '12px', color: '#7F1D1D', margin: '4px 0 0 0' }}>
+                Verifique se há horários de funcionamento configurados para este dia
+              </p>
             </div>
           )}
         </div>
       )}
-
-      {/* Serviços */}
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ fontSize: '12px', color: '#64748B', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
-          Selecionar Serviços *
-        </label>
-        <div style={{ maxHeight: '150px', overflow: 'auto', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '8px' }}>
-          {servicosDisponiveis.map((servico) => (
-            <label key={servico.id} style={{
-              display: 'flex', alignItems: 'center', gap: '8px', padding: '6px',
-              cursor: 'pointer', borderRadius: '4px', marginBottom: '4px'
-            }}>
-              <input
-                type="checkbox"
-                checked={dadosAgendamento.servicos_selecionados.includes(servico.id)}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    setDadosAgendamento(prev => ({
-                      ...prev,
-                      servicos_selecionados: [...prev.servicos_selecionados, servico.id]
-                    }));
-                  } else {
-                    setDadosAgendamento(prev => ({
-                      ...prev,
-                      servicos_selecionados: prev.servicos_selecionados.filter(id => id !== servico.id)
-                    }));
-                  }
-                }}
-              />
-              <span style={{ fontSize: '14px', color: '#1E293B' }}>
-                {servico.nome} - R$ {formatCurrency(servico.preco)}
-              </span>
-            </label>
-          ))}
-        </div>
-      </div>
 
       {/* Barbeiros */}
      <CustomSelect
