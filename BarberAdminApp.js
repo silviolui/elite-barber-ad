@@ -3953,31 +3953,30 @@ const dadosParaSalvar = {
     
     let erro = null;
     
-    if (profissionalEditando) {
-      // Editando profissional existente
-      console.log('✏️ Editando profissional:', profissionalEditando.barbeiro_id);
-      
+if (profissionalEditando) {
+  // Editando profissional existente
+  console.log('✏️ Editando profissional:', profissionalEditando.barbeiro_id);
+  
 const { error } = await supabase
   .from('barbeiros')
-  .delete()
+  .update(dadosParaSalvar)  // ← CORRIGIDO: UPDATE em vez de DELETE
   .eq('barbeiro_id', profissionalEditando.barbeiro_id)
   .eq('barbearia_id', userProfile?.barbearia_id);
-        
-      erro = error;
-    } else {
-      // Adicionando novo profissional
-      console.log('➕ Adicionando novo profissional');
-      
-      const { error } = await supabase
-        .from('barbeiros')
-        .insert([{
-          ...dadosParaSalvar,
-          created_at: getBrasiliaDate().toISOString()
-        }]);
-        
-      erro = error;
-    }
     
+  erro = error;
+} else {
+  // Adicionando novo profissional
+  console.log('➕ Adicionando novo profissional');
+  
+  const { error } = await supabase
+    .from('barbeiros')
+    .insert([{
+      ...dadosParaSalvar,
+      created_at: getBrasiliaDate().toISOString()
+    }]);
+    
+  erro = error;
+}
     if (erro) {
       console.error('Erro ao salvar profissional:', erro);
       alert('Erro ao salvar profissional');
@@ -8013,12 +8012,12 @@ useEffect(() => {
   if (showServicoModal) {
     setTimeout(() => {
       setLocalNome(dadosServico.nome || '');
-      setLocalDuracao(dadosServico.duracao_minutos || '');
-      setLocalPreco(dadosServico.preco || '');
+      setLocalDuracao(dadosServico.duracao_minutos || '0');
+      setLocalPreco(dadosServico.preco || '0.00');
       setLocalAtivo(dadosServico.ativo || 'true');
     }, 50);
   }
-}, []); // ← array vazio
+}, []);
   const salvarServicoLocal = async () => {
     try {
       if (!localNome.trim()) {
@@ -8106,7 +8105,7 @@ const servicoData = {
               type="number"
               value={localDuracao}
               onChange={(e) => setLocalDuracao(e.target.value)}
-              placeholder="30"
+              placeholder="0"
               style={{
                 width: '100%', padding: '12px', border: '1px solid #E2E8F0',
                 borderRadius: '8px', fontSize: '16px', outline: 'none', boxSizing: 'border-box'
@@ -8117,17 +8116,46 @@ const servicoData = {
             <label style={{ fontSize: '12px', color: '#64748B', fontWeight: '500', marginBottom: '4px', display: 'block' }}>
               Preço (R$) *
             </label>
-            <input
-              type="number"
-              step="0.01"
-              value={localPreco}
-              onChange={(e) => setLocalPreco(e.target.value)}
-              placeholder="25.00"
-              style={{
-                width: '100%', padding: '12px', border: '1px solid #E2E8F0',
-                borderRadius: '8px', fontSize: '16px', outline: 'none', boxSizing: 'border-box'
-              }}
-            />
+<input
+  type="text"
+  value={(() => {
+    if (!localPreco || localPreco === '0') return '';
+    // Formatar para exibição com separador de milhares
+    const numero = localPreco.replace(/\D/g, '');
+    if (numero.length === 0) return '';
+    if (numero.length === 1) return `0,0${numero}`;
+    if (numero.length === 2) return `0,${numero}`;
+    
+    const reais = numero.slice(0, -2);
+    const centavos = numero.slice(-2);
+    
+    // Adicionar pontos para milhares
+    const reaisFormatados = reais.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    
+    return `${reaisFormatados},${centavos}`;
+  })()}
+  onChange={(e) => {
+    let valor = e.target.value;
+    // Remove tudo que não é número
+    valor = valor.replace(/\D/g, '');
+    
+    // Limita a 10 dígitos (99.999.999,99)
+    if (valor.length > 10) valor = valor.slice(0, 10);
+    
+    // Converte para formato decimal (ex: 567 -> 5.67)
+    if (valor.length === 0) {
+      setLocalPreco('0');
+    } else {
+      const numeroDecimal = (parseInt(valor) / 100).toFixed(2);
+      setLocalPreco(numeroDecimal);
+    }
+  }}
+  placeholder="0,00"
+  style={{
+    width: '100%', padding: '12px', border: '1px solid #E2E8F0',
+    borderRadius: '8px', fontSize: '16px', outline: 'none', boxSizing: 'border-box'
+  }}
+/>
           </div>
         </div>
 
@@ -8404,7 +8432,7 @@ const comboData = {
         step="0.01"
         value={localPreco}
         onChange={(e) => setLocalPreco(e.target.value)}
-        placeholder="35.00"
+        placeholder="0.00"
         style={{
           width: '100%', padding: '12px', border: '1px solid #E2E8F0',
           borderRadius: '8px', fontSize: '16px', outline: 'none', boxSizing: 'border-box'
@@ -8492,20 +8520,20 @@ const comboData = {
               🔧 Serviços Individuais
             </h3>
             <button
-              onClick={() => {
-                setServicoEditando(null);
-                setDadosServico({ nome: '', duracao_minutos: '', preco: '', ativo: 'true' });
-                setShowServicoModal(true);
-              }}
-              style={{
-                background: '#10B981', color: 'white', border: 'none', borderRadius: '8px',
-                padding: '8px 16px', fontSize: '12px', fontWeight: '600', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '6px'
-              }}
-            >
-              <Plus size={14} />
-              Novo Serviço
-            </button>
+  onClick={() => {
+    setServicoEditando(null);
+    setDadosServico({ nome: '', duracao_minutos: '', preco: '', ativo: 'true' });
+    setShowServicoModal(true);
+  }}
+  style={{
+    background: '#10B981', color: 'white', border: 'none', borderRadius: '8px',
+    padding: '8px 16px', fontSize: '12px', fontWeight: '600', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', gap: '6px'
+  }}
+>
+  <Plus size={14} />
+  Novo Serviço
+</button>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '12px' }}>
@@ -8605,76 +8633,70 @@ onClick={() => {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
-            {combos.map((combo) => (
-              <div key={combo.id} style={{
-                background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px',
-                padding: '12px', opacity: combo.ativo ? 1 : 0.6
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                  <div>
-                    <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#1E293B', margin: '0 0 2px 0' }}>
-                      {combo.nome}
-                    </h4>
-                    <div style={{
-                      background: combo.Combo === 'Diamante' ? '#DBEAFE' :
-                                 combo.Combo === 'Ouro' ? '#FEF3C7' :
-                                 combo.Combo === 'Prata' ? '#F1F5F9' :
-                                 combo.Combo === 'Bronze' ? '#FED7AA' : '#FECACA',
-                      color: combo.Combo === 'Diamante' ? '#1E40AF' :
-                             combo.Combo === 'Ouro' ? '#92400E' :
-                             combo.Combo === 'Prata' ? '#475569' :
-                             combo.Combo === 'Bronze' ? '#C2410C' : '#B91C1C',
-                      padding: '2px 8px', borderRadius: '8px', fontSize: '10px', fontWeight: '600',
-                      display: 'inline-block', marginBottom: '4px'
-                    }}>
-                      {combo.Combo}
-                    </div>
-                  </div>
-                  <div style={{
-                    background: combo.ativo ? '#DCFCE7' : '#FEE2E2',
-                    color: combo.ativo ? '#166534' : '#B91C1C',
-                    padding: '2px 6px', borderRadius: '8px', fontSize: '9px', fontWeight: '600'
-                  }}>
-                    {combo.ativo ? 'ATIVO' : 'INATIVO'}
-                  </div>
-                </div>
-                <p style={{ fontSize: '12px', color: '#64748B', margin: '0 0 8px 0' }}>
-                  ⏱️ {combo.duracao_minutos}min • 💰 R$ {formatCurrency(combo.preco)}
-                </p>
-<div style={{ display: 'flex', gap: '6px' }}>
-  <button
-onClick={() => {
-  const servicosDoCombo = identificarServicosDoCombo(combo.nome);
-  setComboEditando(combo);
-  setDadosCombo({
-    nome: combo.nome,
-    servicos_selecionados: servicosDoCombo,
-    tipo_combo: combo.Combo,
-    preco: combo.preco.toString(),
-    duracao_minutos: combo.duracao_minutos, // ← VERIFICAR SE ESTÁ AQUI
-    ativo: combo.ativo ? 'true' : 'false'
-  });
-  setShowComboModal(true);
-}}
-    style={{
-      background: '#3B82F6', color: 'white', border: 'none', borderRadius: '4px',
-      padding: '4px 8px', fontSize: '10px', fontWeight: '600', cursor: 'pointer'
-    }}
-  >
-    <Edit size={10} />
-  </button>
-  <button
-    onClick={() => excluirItem(combo)}
-    style={{
-      background: '#EF4444', color: 'white', border: 'none', borderRadius: '4px',
-      padding: '4px 8px', fontSize: '10px', fontWeight: '600', cursor: 'pointer'
-    }}
-  >
-    <X size={10} />
-  </button>
-</div>
-              </div>
-            ))}
+{combos.map((combo) => (
+  <div key={combo.id} style={{
+    background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px',
+    padding: '12px', opacity: combo.ativo ? 1 : 0.6
+  }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+      <div>
+        <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#1E293B', margin: '0 0 4px 0' }}>
+          Combo {combo.Combo}
+        </h4>
+        <div style={{
+          fontSize: '12px',
+          color: '#64748B',
+          fontWeight: '500',
+          lineHeight: '1.3'
+        }}>
+          {combo.nome}
+        </div>
+      </div>
+      <div style={{
+        background: combo.ativo ? '#DCFCE7' : '#FEE2E2',
+        color: combo.ativo ? '#166534' : '#B91C1C',
+        padding: '2px 6px', borderRadius: '8px', fontSize: '9px', fontWeight: '600'
+      }}>
+        {combo.ativo ? 'ATIVO' : 'INATIVO'}
+      </div>
+    </div>
+    <p style={{ fontSize: '12px', color: '#64748B', margin: '0 0 8px 0' }}>
+      ⏱️ {combo.duracao_minutos}min • 💰 R$ {formatCurrency(combo.preco)}
+    </p>
+    <div style={{ display: 'flex', gap: '6px' }}>
+      <button
+        onClick={() => {
+          const servicosDoCombo = identificarServicosDoCombo(combo.nome);
+          setComboEditando(combo);
+          setDadosCombo({
+            nome: combo.nome,
+            servicos_selecionados: servicosDoCombo,
+            tipo_combo: combo.Combo,
+            preco: combo.preco.toString(),
+            duracao_minutos: combo.duracao_minutos,
+            ativo: combo.ativo ? 'true' : 'false'
+          });
+          setShowComboModal(true);
+        }}
+        style={{
+          background: '#3B82F6', color: 'white', border: 'none', borderRadius: '4px',
+          padding: '4px 8px', fontSize: '10px', fontWeight: '600', cursor: 'pointer'
+        }}
+      >
+        <Edit size={10} />
+      </button>
+      <button
+        onClick={() => excluirItem(combo)}
+        style={{
+          background: '#EF4444', color: 'white', border: 'none', borderRadius: '4px',
+          padding: '4px 8px', fontSize: '10px', fontWeight: '600', cursor: 'pointer'
+        }}
+      >
+        <X size={10} />
+      </button>
+    </div>
+  </div>
+))}
           </div>
 
           {combos.length === 0 && (
@@ -11881,7 +11903,8 @@ const ComingSoonScreen = ({ title }) => (
           }}
         />
       </div>
-{/* CPF */}
+
+      {/* CPF */}
       <div style={{ marginBottom: '16px' }}>
         <label style={{ fontSize: '12px', color: '#64748B', fontWeight: '500', marginBottom: '4px', display: 'block' }}>
           CPF (opcional)
@@ -11897,41 +11920,175 @@ const ComingSoonScreen = ({ title }) => (
           }}
         />
       </div>
-{/* Serviços - MOVIDO PARA CIMA */}
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ fontSize: '12px', color: '#64748B', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
-          Selecionar Serviços *
-        </label>
-        <div style={{ maxHeight: '150px', overflow: 'auto', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '8px' }}>
-          {servicosDisponiveis.map((servico) => (
-            <label key={servico.id} style={{
-              display: 'flex', alignItems: 'center', gap: '8px', padding: '6px',
-              cursor: 'pointer', borderRadius: '4px', marginBottom: '4px'
-            }}>
-              <input
-                type="checkbox"
-                checked={dadosAgendamento.servicos_selecionados.includes(servico.id)}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    setDadosAgendamento(prev => ({
-                      ...prev,
-                      servicos_selecionados: [...prev.servicos_selecionados, servico.id]
-                    }));
-                  } else {
-                    setDadosAgendamento(prev => ({
-                      ...prev,
-                      servicos_selecionados: prev.servicos_selecionados.filter(id => id !== servico.id)
-                    }));
-                  }
-                }}
-              />
-              <span style={{ fontSize: '14px', color: '#1E293B' }}>
-                {servico.nome} - R$ {formatCurrency(servico.preco)}
-              </span>
+
+      {/* Barbeiro - MOVIDO PARA CIMA */}
+      <CustomSelect
+        value={dadosAgendamento.barbeiro_selecionado}
+        onChange={(barbeiro_id) => {
+          setDadosAgendamento(prev => ({ 
+            ...prev, 
+            barbeiro_selecionado: barbeiro_id,
+            servicos_selecionados: [], // Limpar serviços quando mudar barbeiro
+            data_agendamento: ''
+          }));
+          setHorarioSelecionado('');
+          setHorariosDisponiveis([]);
+        }}
+        options={barbeiros
+          .filter(b => b.ativo === 'true' || b.ativo === true)
+          .map(barbeiro => ({
+            value: barbeiro.barbeiro_id,
+            label: barbeiro.nome
+          }))
+        }
+        label="Selecionar Barbeiro *"
+        placeholder="Escolha o profissional"
+      />
+
+      {/* Serviços e Combos - SÓ MOSTRA APÓS SELECIONAR BARBEIRO */}
+      {dadosAgendamento.barbeiro_selecionado && (() => {
+        // Filtrar serviços do barbeiro selecionado
+        const barbeiroSelecionado = barbeiros.find(b => b.barbeiro_id === dadosAgendamento.barbeiro_selecionado);
+        const servicosDoBarbeiro = barbeiroSelecionado ? parseServicos(barbeiroSelecionado.servicos) : [];
+        
+        // Filtrar serviços individuais que o barbeiro faz
+        const servicosIndividuaisFiltrados = servicosDisponiveis.filter(servico => 
+          servico.Combo === 'Serviço' && servicosDoBarbeiro.includes(servico.nome)
+        );
+        
+        // Filtrar combos que podem ser feitos com os serviços do barbeiro
+        const combosFiltrados = servicosDisponiveis.filter(combo => {
+          if (combo.Combo === 'Serviço') return false; // Não é combo
+          
+          // Verificar se o barbeiro pode fazer todos os serviços do combo
+          const servicosDoCombo = combo.nome.split(' + ');
+          return servicosDoCombo.every(servicoCombo => 
+            servicosDoBarbeiro.some(servicoBarbeiro => 
+              servicoBarbeiro.toLowerCase().includes(servicoCombo.toLowerCase()) ||
+              servicoCombo.toLowerCase().includes(servicoBarbeiro.toLowerCase())
+            )
+          );
+        });
+
+        return (
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', color: '#64748B', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+              Serviços de {barbeiroSelecionado?.nome} *
             </label>
-          ))}
-        </div>
-      </div>
+            
+            {/* SEÇÃO SERVIÇOS INDIVIDUAIS */}
+            {servicosIndividuaisFiltrados.length > 0 && (
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontSize: '11px', color: '#374151', fontWeight: '600', marginBottom: '6px' }}>
+                  🔧 Serviços Individuais:
+                </div>
+                <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', padding: '8px', background: '#FAFAFA' }}>
+                  {servicosIndividuaisFiltrados.map((servico) => (
+                    <label key={servico.id} style={{
+                      display: 'flex', alignItems: 'center', gap: '8px', padding: '6px',
+                      cursor: 'pointer', borderRadius: '4px', marginBottom: '4px'
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={dadosAgendamento.servicos_selecionados.includes(servico.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setDadosAgendamento(prev => ({
+                              ...prev,
+                              servicos_selecionados: [...prev.servicos_selecionados, servico.id]
+                            }));
+                          } else {
+                            setDadosAgendamento(prev => ({
+                              ...prev,
+                              servicos_selecionados: prev.servicos_selecionados.filter(id => id !== servico.id)
+                            }));
+                          }
+                        }}
+                      />
+                      <span style={{ fontSize: '14px', color: '#1E293B' }}>
+                        {servico.nome} - R$ {formatCurrency(servico.preco)} ({servico.duracao_minutos}min)
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* SEÇÃO COMBOS */}
+            {combosFiltrados.length > 0 && (
+              <div>
+                <div style={{ fontSize: '11px', color: '#374151', fontWeight: '600', marginBottom: '6px' }}>
+                  🎁 Combos Disponíveis:
+                </div>
+                <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', padding: '8px', background: '#FFF7ED' }}>
+                  {combosFiltrados.map((combo) => (
+                    <label key={combo.id} style={{
+                      display: 'flex', alignItems: 'center', gap: '8px', padding: '6px',
+                      cursor: 'pointer', borderRadius: '4px', marginBottom: '4px'
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={dadosAgendamento.servicos_selecionados.includes(combo.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setDadosAgendamento(prev => ({
+                              ...prev,
+                              servicos_selecionados: [...prev.servicos_selecionados, combo.id]
+                            }));
+                          } else {
+                            setDadosAgendamento(prev => ({
+                              ...prev,
+                              servicos_selecionados: prev.servicos_selecionados.filter(id => id !== combo.id)
+                            }));
+                          }
+                        }}
+                      />
+                      <span style={{ fontSize: '14px', color: '#1E293B' }}>
+                        {combo.nome} - R$ {formatCurrency(combo.preco)} ({combo.duracao_minutos}min)
+                        <span style={{
+                          marginLeft: '8px',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          fontSize: '10px',
+                          fontWeight: '700',
+                          background: combo.Combo === 'Diamante' ? '#DBEAFE' :
+                                     combo.Combo === 'Ouro' ? '#FEF3C7' :
+                                     combo.Combo === 'Prata' ? '#F1F5F9' :
+                                     combo.Combo === 'Bronze' ? '#FED7AA' : '#E5E7EB',
+                          color: combo.Combo === 'Diamante' ? '#1E40AF' :
+                                 combo.Combo === 'Ouro' ? '#92400E' :
+                                 combo.Combo === 'Prata' ? '#475569' :
+                                 combo.Combo === 'Bronze' ? '#C2410C' : '#374151'
+                        }}>
+                          {combo.Combo}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Aviso se não houver serviços/combos */}
+            {servicosIndividuaisFiltrados.length === 0 && combosFiltrados.length === 0 && (
+              <div style={{
+                border: '1px solid #FEE2E2',
+                borderRadius: '8px',
+                padding: '16px',
+                textAlign: 'center',
+                background: '#FEF2F2'
+              }}>
+                <p style={{ fontSize: '14px', color: '#B91C1C', margin: 0, fontWeight: '500' }}>
+                  ⚠️ Este profissional não tem serviços configurados
+                </p>
+                <p style={{ fontSize: '12px', color: '#7F1D1D', margin: '4px 0 0 0' }}>
+                  Configure os serviços do profissional na tela "Profissionais"
+                </p>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Data - só mostra depois de selecionar barbeiro E serviços */}
       {dadosAgendamento.barbeiro_selecionado && dadosAgendamento.servicos_selecionados.length > 0 && (
@@ -11949,7 +12106,7 @@ const ComingSoonScreen = ({ title }) => (
         />
       )}
 
-{/* Horários - só mostra depois de selecionar data E serviços */}
+      {/* Horários - só mostra depois de selecionar data E serviços */}
       {dadosAgendamento.data_agendamento && dadosAgendamento.servicos_selecionados.length > 0 && (
         <div style={{ marginBottom: '16px' }}>
           <label style={{ fontSize: '12px', color: '#64748B', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
@@ -12008,29 +12165,6 @@ const ComingSoonScreen = ({ title }) => (
           )}
         </div>
       )}
-
-      {/* Barbeiros */}
-     <CustomSelect
-        value={dadosAgendamento.barbeiro_selecionado}
-        onChange={(barbeiro_id) => {
-          setDadosAgendamento(prev => ({ 
-            ...prev, 
-            barbeiro_selecionado: barbeiro_id,
-            data_agendamento: ''
-          }));
-          setHorarioSelecionado('');
-          setHorariosDisponiveis([]);
-        }}
-        options={barbeiros
-          .filter(b => b.ativo === 'true' || b.ativo === true)
-          .map(barbeiro => ({
-            value: barbeiro.barbeiro_id,
-            label: barbeiro.nome
-          }))
-        }
-        label="Selecionar Barbeiro *"
-        placeholder="Escolha o profissional"
-      />
 
       {/* Valor Total */}
       {dadosAgendamento.servicos_selecionados.length > 0 && (
