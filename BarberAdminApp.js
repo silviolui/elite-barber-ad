@@ -1365,7 +1365,8 @@ const [dadosAgendamento, setDadosAgendamento] = useState({
   cliente_cpf: '',
   data_agendamento: '',
   servicos_selecionados: [],
-  barbeiro_selecionado: ''
+  barbeiro_selecionado: '',
+  tipo_selecao: '' // 'servicos' ou 'combos'
 });
 const [servicosDisponiveis, setServicosDisponiveis] = useState([]);
 const [profissionalEditando, setProfissionalEditando] = useState(null);
@@ -2326,33 +2327,29 @@ useEffect(() => {
 const identificarTipoCombo = (servicoNome) => {
   if (!servicoNome) return null;
   
-  // Procurar na lista de serviços/combos disponíveis
-  const servicoEncontrado = servicosDisponiveis.find(s => {
-    // Comparar nome exato primeiro
-    if (s.nome.toLowerCase().trim() === servicoNome.toLowerCase().trim()) {
-      return true;
-    }
-    
-    // Se não encontrou exato, tentar busca por similaridade alta (80% de match)
-    const palavrasServico = servicoNome.toLowerCase().split(/[\s+]+/).filter(p => p.length > 2);
-    const palavrasCombo = s.nome.toLowerCase().split(/[\s+]+/).filter(p => p.length > 2);
-    
-    let matches = 0;
-    palavrasServico.forEach(palavra => {
-      if (palavrasCombo.some(p => p.includes(palavra) || palavra.includes(p))) {
-        matches++;
-      }
-    });
-    
-    // Se tem pelo menos 80% de match nas palavras
-    return matches >= Math.ceil(palavrasServico.length * 0.8);
-  });
+  // PRIMEIRO: Verificar se existe um serviço individual exato com este nome
+  const servicoIndividual = servicosDisponiveis.find(s => 
+    s.nome.toLowerCase().trim() === servicoNome.toLowerCase().trim() && 
+    s.Combo === 'Serviço'
+  );
   
-  if (servicoEncontrado && servicoEncontrado.Combo && servicoEncontrado.Combo !== 'Serviço') {
-    return servicoEncontrado.Combo;
+  // Se encontrou um serviço individual exato, NÃO é combo
+  if (servicoIndividual) {
+    return null;
   }
   
-  // Fallback: analisar padrões do nome para determinar tipo de combo
+  // SEGUNDO: Procurar apenas combos (não serviços individuais) com nome exato
+  const comboEncontrado = servicosDisponiveis.find(s => 
+    s.nome.toLowerCase().trim() === servicoNome.toLowerCase().trim() && 
+    s.Combo !== 'Serviço'
+  );
+  
+  // Se encontrou um combo com nome exato, retornar o tipo
+  if (comboEncontrado && comboEncontrado.Combo) {
+    return comboEncontrado.Combo;
+  }
+  
+  // TERCEIRO: Fallback apenas para nomes que contêm '+' (padrão de combo)
   const nomeNormalizado = servicoNome.toLowerCase();
   if (nomeNormalizado.includes('+')) {
     // Baseado na quantidade de serviços
@@ -2380,9 +2377,9 @@ const identificarTipoCombo = (servicoNome) => {
     return 'Combo';
   }
   
+  // Se não é nenhum dos casos acima, é um serviço individual
   return null;
 };
-
 const CustomDatePicker = ({ value, onChange, label }) => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -3518,14 +3515,15 @@ const { error } = await supabase
     // Fechar modal e limpar estados
     setShowAgendamentoModal(false);
     setAgendamentoEditando(null);
-    setDadosAgendamento({
-      nome_cliente: '',
-      telefone_cliente: '',
-      cliente_cpf: '',
-      data_agendamento: '',
-      servicos_selecionados: [],
-      barbeiro_selecionado: ''
-    });
+setDadosAgendamento({
+  nome_cliente: '',
+  telefone_cliente: '',
+  cliente_cpf: '',
+  data_agendamento: '',
+  servicos_selecionados: [],
+  barbeiro_selecionado: '',
+  tipo_selecao: ''
+});
     setHorarioSelecionado('');
     setHorariosDisponiveis([]);
     
@@ -3622,7 +3620,8 @@ if (!horarioSelecionado) {
       cliente_cpf: '',
       data_agendamento: '',
       servicos_selecionados: [],
-      barbeiro_selecionado: ''
+      barbeiro_selecionado: '',
+      tipo_selecao: ''
     });
     setHorarioSelecionado('');
     setHorariosDisponiveis([]);
@@ -3641,8 +3640,12 @@ const abrirEdicaoAgendamento = (agendamento) => {
   // Mapear serviços string → IDs
   const servicosIds = mapearServicosParaIds(agendamento.servico);
   
-  // Definir agendamento sendo editado
+// Definir agendamento sendo editado
   setAgendamentoEditando(agendamento);
+  
+  // Determinar se é serviço ou combo
+  const tipoCombo = identificarTipoCombo(agendamento.servico);
+  const tipoSelecao = tipoCombo ? 'combos' : 'servicos';
   
   // Pré-preencher formulário
   setDadosAgendamento({
@@ -3651,7 +3654,8 @@ const abrirEdicaoAgendamento = (agendamento) => {
     cliente_cpf: agendamento.cliente_cpf || '',
     data_agendamento: agendamento.data_agendamento || '',
     servicos_selecionados: servicosIds,
-    barbeiro_selecionado: agendamento.barbeiro_id || ''
+    barbeiro_selecionado: agendamento.barbeiro_id || '',
+    tipo_selecao: tipoSelecao
   });
   
   // Pré-definir horário selecionado
@@ -5452,7 +5456,8 @@ setDadosAgendamento({
     cliente_cpf: '',
     data_agendamento: getBrasiliaDateString(),
     servicos_selecionados: [],
-    barbeiro_selecionado: ''
+    barbeiro_selecionado: '',
+    tipo_selecao: ''
   });
   setShowAgendamentoModal(true);
 }}
@@ -11819,6 +11824,8 @@ const ComingSoonScreen = ({ title }) => (
     <div>
       {renderScreen()}
       {/* MODAL DE NOVO AGENDAMENTO */}
+
+      
 {showAgendamentoModal && (
   <div style={{
     position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -11833,7 +11840,8 @@ const ComingSoonScreen = ({ title }) => (
               cliente_cpf: '',
               data_agendamento: '',
               servicos_selecionados: [],
-              barbeiro_selecionado: ''
+              barbeiro_selecionado: '',
+              tipo_selecao: ''
             });
             setHorarioSelecionado('');
             setHorariosDisponiveis([]);
@@ -11847,7 +11855,7 @@ const ComingSoonScreen = ({ title }) => (
         {agendamentoEditando ? '✏️ Editar Agendamento' : '📅 Novo Agendamento'}
       </h3>
 
-      {/* Nome do Cliente */}
+{/* Nome do Cliente */}
       <div style={{ marginBottom: '16px' }}>
         <label style={{ fontSize: '12px', color: '#64748B', fontWeight: '500', marginBottom: '4px', display: 'block' }}>
           Nome do Cliente *
@@ -11880,7 +11888,8 @@ const ComingSoonScreen = ({ title }) => (
           }}
         />
       </div>
-{/* CPF */}
+
+      {/* CPF */}
       <div style={{ marginBottom: '16px' }}>
         <label style={{ fontSize: '12px', color: '#64748B', fontWeight: '500', marginBottom: '4px', display: 'block' }}>
           CPF (opcional)
@@ -11896,59 +11905,72 @@ const ComingSoonScreen = ({ title }) => (
           }}
         />
       </div>
-{/* Serviços - MOVIDO PARA CIMA */}
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ fontSize: '12px', color: '#64748B', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
-          Selecionar Serviços *
-        </label>
-        <div style={{ maxHeight: '150px', overflow: 'auto', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '8px' }}>
-          {servicosDisponiveis.map((servico) => (
-            <label key={servico.id} style={{
-              display: 'flex', alignItems: 'center', gap: '8px', padding: '6px',
-              cursor: 'pointer', borderRadius: '4px', marginBottom: '4px'
-            }}>
-              <input
-                type="checkbox"
-                checked={dadosAgendamento.servicos_selecionados.includes(servico.id)}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    setDadosAgendamento(prev => ({
-                      ...prev,
-                      servicos_selecionados: [...prev.servicos_selecionados, servico.id]
-                    }));
-                  } else {
-                    setDadosAgendamento(prev => ({
-                      ...prev,
-                      servicos_selecionados: prev.servicos_selecionados.filter(id => id !== servico.id)
-                    }));
-                  }
-                }}
-              />
-              <span style={{ fontSize: '14px', color: '#1E293B' }}>
-                {servico.nome} - R$ {formatCurrency(servico.preco)}
-              </span>
-            </label>
-          ))}
+      {/* Tipo de Seleção - SÓ APARECE DEPOIS DE ESCOLHER BARBEIRO */}
+      {dadosAgendamento.barbeiro_selecionado && (
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ fontSize: '12px', color: '#64748B', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+            O que você deseja? *
+          </label>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setDadosAgendamento(prev => ({ 
+                  ...prev, 
+                  tipo_selecao: 'servicos',
+                  servicos_selecionados: []
+                }));
+              }}
+              style={{
+                flex: 1,
+                background: dadosAgendamento.tipo_selecao === 'servicos' ? '#10B981' : '#F8FAFC',
+                color: dadosAgendamento.tipo_selecao === 'servicos' ? 'white' : '#64748B',
+                border: `2px solid ${dadosAgendamento.tipo_selecao === 'servicos' ? '#10B981' : '#E2E8F0'}`,
+                borderRadius: '8px',
+                padding: '12px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
+              }}
+            >
+              🔧 Serviços
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDadosAgendamento(prev => ({ 
+                  ...prev, 
+                  tipo_selecao: 'combos',
+                  servicos_selecionados: []
+                }));
+              }}
+              style={{
+                flex: 1,
+                background: dadosAgendamento.tipo_selecao === 'combos' ? '#FF6B35' : '#F8FAFC',
+                color: dadosAgendamento.tipo_selecao === 'combos' ? 'white' : '#64748B',
+                border: `2px solid ${dadosAgendamento.tipo_selecao === 'combos' ? '#FF6B35' : '#E2E8F0'}`,
+                borderRadius: '8px',
+                padding: '12px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
+              }}
+            >
+              🎁 Combos
+            </button>
+          </div>
         </div>
-      </div>
-
-      {/* Data - só mostra depois de selecionar barbeiro E serviços */}
-      {dadosAgendamento.barbeiro_selecionado && dadosAgendamento.servicos_selecionados.length > 0 && (
-       <CustomDatePicker
-          value={dadosAgendamento.data_agendamento}
-          onChange={(novaData) => {
-            setDadosAgendamento(prev => ({ ...prev, data_agendamento: novaData }));
-            setHorarioSelecionado('');
-            if (novaData) {
-              calcularHorariosDisponiveis(dadosAgendamento.barbeiro_selecionado, novaData);
-            }
-          }}
-          minDate={getBrasiliaDateString()}
-          label="Data do Agendamento *"
-        />
       )}
 
-{/* Horários - só mostra depois de selecionar data E serviços */}
+      {/* Horários - só mostra depois de selecionar data */}
       {dadosAgendamento.data_agendamento && dadosAgendamento.servicos_selecionados.length > 0 && (
         <div style={{ marginBottom: '16px' }}>
           <label style={{ fontSize: '12px', color: '#64748B', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
@@ -12008,29 +12030,6 @@ const ComingSoonScreen = ({ title }) => (
         </div>
       )}
 
-      {/* Barbeiros */}
-     <CustomSelect
-        value={dadosAgendamento.barbeiro_selecionado}
-        onChange={(barbeiro_id) => {
-          setDadosAgendamento(prev => ({ 
-            ...prev, 
-            barbeiro_selecionado: barbeiro_id,
-            data_agendamento: ''
-          }));
-          setHorarioSelecionado('');
-          setHorariosDisponiveis([]);
-        }}
-        options={barbeiros
-          .filter(b => b.ativo === 'true' || b.ativo === true)
-          .map(barbeiro => ({
-            value: barbeiro.barbeiro_id,
-            label: barbeiro.nome
-          }))
-        }
-        label="Selecionar Barbeiro *"
-        placeholder="Escolha o profissional"
-      />
-
       {/* Valor Total */}
       {dadosAgendamento.servicos_selecionados.length > 0 && (
         <div style={{
@@ -12076,6 +12075,50 @@ const ComingSoonScreen = ({ title }) => (
       <SuccessPopup />  
       <EditClientModal />
       <ProfissionalModal />
+       {/* 🔍 FUNÇÕES PARA FILTRAR SERVIÇOS E COMBOS POR BARBEIRO */}
+      {(() => {
+        // 🔍 FILTRAR SERVIÇOS DO BARBEIRO SELECIONADO
+        const obterServicosDoBarbeiro = () => {
+          if (!dadosAgendamento.barbeiro_selecionado) return [];
+          
+          const barbeiro = barbeiros.find(b => b.barbeiro_id === dadosAgendamento.barbeiro_selecionado);
+          if (!barbeiro) return [];
+          
+          const servicosDoBarbeiro = parseServicos(barbeiro.servicos);
+          
+          return servicosDisponiveis.filter(servico => 
+            servico.Combo === 'Serviço' && 
+            servicosDoBarbeiro.includes(servico.nome)
+          );
+        };
+
+        // 🎁 FILTRAR COMBOS POSSÍVEIS BASEADO NOS SERVIÇOS DO BARBEIRO
+        const obterCombosDoBarbeiro = () => {
+          if (!dadosAgendamento.barbeiro_selecionado) return [];
+          
+          const barbeiro = barbeiros.find(b => b.barbeiro_id === dadosAgendamento.barbeiro_selecionado);
+          if (!barbeiro) return [];
+          
+          const servicosDoBarbeiro = parseServicos(barbeiro.servicos);
+          
+          return servicosDisponiveis.filter(combo => {
+            if (combo.Combo === 'Serviço') return false; // Só combos
+            
+            // Verificar se o barbeiro pode fazer todos os serviços do combo
+            const servicosDoCombo = combo.nome.split('+').map(s => s.trim());
+            return servicosDoCombo.every(servicoCombo => 
+              servicosDoBarbeiro.some(servicoBarbeiro => 
+                servicoBarbeiro.toLowerCase().includes(servicoCombo.toLowerCase()) ||
+                servicoCombo.toLowerCase().includes(servicoBarbeiro.toLowerCase())
+              )
+            );
+          });
+        };
+        
+        return null; // Não renderiza nada, apenas define as funções
+      })()}
+      
+      {/* MODAL DE NOVO AGENDAMENTO */}
       {/* MODAL DE CONFIRMAÇÃO */}
       {showConfirmModal && agendamentoPendente && (
         <div style={{
