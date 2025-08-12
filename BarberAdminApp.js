@@ -5631,15 +5631,15 @@ const Header = ({ title, subtitle, showBack = false, onBackAction }) => (
           </button>
         )}
         
-        <div>
-          <h1 style={{
-            fontSize: '18px',
-            fontWeight: '700',
-            color: '#1E293B',
-            margin: 0
-          }}>
-            {title}
-          </h1>
+     <div>
+  <h1 style={{
+    fontSize: '18px',
+    fontWeight: '700',
+    color: '#1E293B',
+    margin: 0
+  }}>
+    {title === 'BookIA' ? (userProfile?.nome_estabelecimento || 'BookIA') : title}
+  </h1>
           {subtitle && (
             <p style={{
               fontSize: '12px',
@@ -5710,20 +5710,20 @@ const Header = ({ title, subtitle, showBack = false, onBackAction }) => (
           )}
         </button>
         
-        <div style={{
-          width: '32px',
-          height: '32px',
-          background: '#FF6B35',
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '12px',
-          fontWeight: '600',
-          color: 'white'
-        }}>
-          BI
-        </div>
+      <div style={{
+  width: '32px',
+  height: '32px',
+  background: '#FF6B35',
+  borderRadius: '50%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: '12px',
+  fontWeight: '600',
+  color: 'white'
+}}>
+  {gerarSiglaEstabelecimento(userProfile?.nome_estabelecimento)}
+</div>
       </div>
     </div>
   </div>
@@ -10073,28 +10073,36 @@ const RelatoriosAgendamentosScreen = ({ onBack }) => {
   
   const [filtroFim, setFiltroFim] = useState(getBrasiliaDateString());
   
-  // Todos os agendamentos (confirmados + cancelados + não compareceu)
+  // CORREÇÃO: Buscar TODOS os agendamentos do histórico (confirmados, cancelados, não compareceu)
   const todosAgendamentos = historicoConfirmados.filter(item => {
     return item.data_agendamento >= filtroInicio && item.data_agendamento <= filtroFim;
   });
   
-  // Separar por status
+  // Separar por status - CORREÇÃO: aceitar todas as variações possíveis de cancelado
   const confirmados = todosAgendamentos.filter(item => item.status === 'confirmado');
-  const cancelados = todosAgendamentos.filter(item => item.status === 'cancelado');
-  const naoCompareceu = todosAgendamentos.filter(item => item.status === 'nao_compareceu');
+  const cancelados = todosAgendamentos.filter(item => 
+    item.status === 'cancelado' || 
+    item.status === 'CANCELADO' || 
+    item.status === 'Cancelado'
+  );
+  const naoCompareceu = todosAgendamentos.filter(item => 
+    item.status === 'não compareceu' || 
+    item.status === 'nao_compareceu' ||
+    item.status === 'não_compareceu'
+  );
 
   // Calcular métricas de agendamentos
   const calcularMetricasAgendamentos = () => {
     // Análise por horário
     const porHorario = todosAgendamentos.reduce((acc, item) => {
-      const horario = item.horario || 'Sem horário';
+      const horario = item.hora_inicio?.substring(0, 5) || 'Sem horário';
       if (!acc[horario]) {
         acc[horario] = { total: 0, confirmados: 0, cancelados: 0, naoCompareceu: 0 };
       }
       acc[horario].total += 1;
       if (item.status === 'confirmado') acc[horario].confirmados += 1;
-      if (item.status === 'cancelado') acc[horario].cancelados += 1;
-      if (item.status === 'nao_compareceu') acc[horario].naoCompareceu += 1;
+      if (item.status === 'cancelado' || item.status === 'CANCELADO' || item.status === 'Cancelado') acc[horario].cancelados += 1;
+      if (item.status === 'não compareceu' || item.status === 'nao_compareceu' || item.status === 'não_compareceu') acc[horario].naoCompareceu += 1;
       return acc;
     }, {});
     
@@ -10107,8 +10115,8 @@ const RelatoriosAgendamentosScreen = ({ onBack }) => {
       }
       acc[diaSemana].total += 1;
       if (item.status === 'confirmado') acc[diaSemana].confirmados += 1;
-      if (item.status === 'cancelado') acc[diaSemana].cancelados += 1;
-      if (item.status === 'nao_compareceu') acc[diaSemana].naoCompareceu += 1;
+      if (item.status === 'cancelado' || item.status === 'CANCELADO' || item.status === 'Cancelado') acc[diaSemana].cancelados += 1;
+      if (item.status === 'não compareceu' || item.status === 'nao_compareceu' || item.status === 'não_compareceu') acc[diaSemana].naoCompareceu += 1;
       return acc;
     }, {});
     
@@ -10120,12 +10128,12 @@ const RelatoriosAgendamentosScreen = ({ onBack }) => {
       }
       acc[prof].total += 1;
       if (item.status === 'confirmado') acc[prof].confirmados += 1;
-      if (item.status === 'cancelado') acc[prof].cancelados += 1;
-      if (item.status === 'nao_compareceu') acc[prof].naoCompareceu += 1;
+      if (item.status === 'cancelado' || item.status === 'CANCELADO' || item.status === 'Cancelado') acc[prof].cancelados += 1;
+      if (item.status === 'não compareceu' || item.status === 'nao_compareceu' || item.status === 'não_compareceu') acc[prof].naoCompareceu += 1;
       return acc;
     }, {});
     
-    // Métricas gerais
+    // Métricas gerais - CORREÇÃO: usar as variáveis corretas
     const totalAgendamentos = todosAgendamentos.length;
     const taxaConfirmacao = totalAgendamentos > 0 ? (confirmados.length / totalAgendamentos) * 100 : 0;
     const taxaCancelamento = totalAgendamentos > 0 ? (cancelados.length / totalAgendamentos) * 100 : 0;
@@ -10185,21 +10193,21 @@ const RelatoriosAgendamentosScreen = ({ onBack }) => {
               <label style={{ fontSize: '12px', color: '#64748B', fontWeight: '500', marginBottom: '4px', display: 'block' }}>
                 Data Início
               </label>
-<CustomDatePicker
-  value={filtroInicio}
-  onChange={setFiltroInicio}
-  label=""
-/>
+              <CustomDatePicker
+                value={filtroInicio}
+                onChange={setFiltroInicio}
+                label=""
+              />
             </div>
             <div>
               <label style={{ fontSize: '12px', color: '#64748B', fontWeight: '500', marginBottom: '4px', display: 'block' }}>
                 Data Fim
               </label>
-<CustomDatePicker
-  value={filtroFim}
-  onChange={setFiltroFim}
-  label=""
-/>
+              <CustomDatePicker
+                value={filtroFim}
+                onChange={setFiltroFim}
+                label=""
+              />
             </div>
           </div>
         </div>
@@ -10433,7 +10441,6 @@ const RelatoriosAgendamentosScreen = ({ onBack }) => {
     </div>
   );
 };
-
 const RelatoriosProfissionaisScreen = ({ onBack }) => {
   const [filtroInicio, setFiltroInicio] = useState(() => {
     const inicio = getBrasiliaDate();
