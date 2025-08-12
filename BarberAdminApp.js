@@ -1746,7 +1746,10 @@ const loadData = useCallback(async (showLoadingState = false) => {
   
   try {
     console.log('🔄 Carregando dados do Supabase para barbearia:', userProfile?.barbearia_id);
-    
+    console.log('🔍 === DEBUG LOAD DATA ===');
+console.log('👤 UserProfile completo:', userProfile);
+console.log('🏢 Barbearia ID:', userProfile?.barbearia_id);
+console.log('🆔 Tipo do barbearia_id:', typeof userProfile?.barbearia_id);
     if (!userProfile?.barbearia_id) {
       console.log('❌ Sem barbearia_id, não carregando dados');
       return;
@@ -1814,7 +1817,10 @@ const loadData = useCallback(async (showLoadingState = false) => {
       setMinAgendamentosAtivo(parseInt(configData.valor) || 3);
       console.log('✅ Configuração carregada:', configData.valor);
     }
-    // Carregar tempo de tolerância APENAS desta barbearia
+// Carregar tempo de tolerância APENAS desta barbearia
+console.log('🔍 === CARREGANDO TEMPO DE TOLERÂNCIA ===');
+console.log('🏢 Barbearia ID para buscar:', userProfile.barbearia_id);
+
 const { data: tempoToleranciaData, error: tempoToleranciaError } = await supabase
   .from('configuracoes')
   .select('*')
@@ -1822,12 +1828,21 @@ const { data: tempoToleranciaData, error: tempoToleranciaError } = await supabas
   .eq('barbearia_id', userProfile.barbearia_id)
   .single();
 
+console.log('📊 Resultado da busca - Data:', tempoToleranciaData);
+console.log('📊 Resultado da busca - Error:', tempoToleranciaError);
+
 if (tempoToleranciaError) {
   console.log('⚠️ Configuração de tempo de tolerância não encontrada, usando padrão (60)');
+  console.log('🔍 Detalhes do erro:', tempoToleranciaError.message);
+  setTempoTolerancia(60);
 } else {
-  setTempoTolerancia(parseInt(tempoToleranciaData.valor) || 60);
-  console.log('✅ Tempo de tolerância carregado:', tempoToleranciaData.valor);
+  const valorCarregado = parseInt(tempoToleranciaData.valor) || 60;
+  console.log('✅ Tempo de tolerância encontrado no banco:', tempoToleranciaData.valor);
+  console.log('✅ Valor convertido para número:', valorCarregado);
+  setTempoTolerancia(valorCarregado);
+  console.log('✅ Estado setado para:', valorCarregado);
 }
+
 // Carregar horários APENAS desta barbearia
 const { data: horariosData, error: horariosError } = await supabase
   .from('horarios_funcionamento')
@@ -7606,17 +7621,16 @@ const { error: updateError } = await supabase
       
       if (updateError) {
         // Se não existe, criar nova
-        const { error: insertError } = await supabase
-          .from('configuracoes')
-          .insert([
-            {
-              chave: 'min_agendamentos_ativo',
-              valor: novoMinimo.toString(),
-              descricao: 'Número mínimo de agendamentos para cliente se tornar ativo',
-              created_at: getBrasiliaDate().toISOString(),
-              barbearia_id: userProfile?.barbearia_id,
-            }
-          ]);
+const { error: insertError } = await supabase
+  .from('configuracoes')
+  .insert([
+    {
+      chave: 'min_agendamentos_ativo',
+      valor: novoMinimo.toString(),
+      descricao: 'Número mínimo de agendamentos para cliente se tornar ativo',
+      barbearia_id: userProfile?.barbearia_id,
+    }
+  ]);
         
         if (insertError) {
           console.error('Erro ao salvar configuração:', insertError);
@@ -7638,40 +7652,78 @@ const { error: updateError } = await supabase
 const salvarTempoTolerancia = async () => {
   setSalvandoTempo(true);
   try {
-    // Tentar atualizar configuração existente
-    const { error: updateError } = await supabase
+    console.log('💾 === SALVANDO TEMPO DE TOLERÂNCIA ===');
+    console.log('📊 Valor a ser salvo:', novoTempoTolerancia);
+    console.log('🏢 Barbearia ID:', userProfile?.barbearia_id);
+    
+    // Primeiro, verificar se já existe
+    const { data: existingData, error: checkError } = await supabase
       .from('configuracoes')
-      .update({ valor: novoTempoTolerancia.toString() })
+      .select('*')
       .eq('chave', 'tempo_tolerancia')
       .eq('barbearia_id', userProfile?.barbearia_id);
     
-    if (updateError) {
-      // Se não existe, criar nova
-      const { error: insertError } = await supabase
+    console.log('🔍 Configuração existente:', existingData);
+    
+    let result;
+    if (existingData && existingData.length > 0) {
+      // Atualizar existente
+      console.log('🔄 Atualizando configuração existente...');
+      result = await supabase
         .from('configuracoes')
-        .insert([
-          {
-            chave: 'tempo_tolerancia',
-            valor: novoTempoTolerancia.toString(),
-            descricao: 'Tempo de tolerância em minutos para marcar como não compareceu',
-            created_at: getBrasiliaDate().toISOString(),
-            barbearia_id: userProfile?.barbearia_id,
-          }
-        ]);
-      
-      if (insertError) {
-        console.error('Erro ao salvar tempo de tolerância:', insertError);
-        alert('Erro ao salvar configuração');
-        return;
-      }
+        .update({ 
+          valor: novoTempoTolerancia.toString()
+        })
+        .eq('chave', 'tempo_tolerancia')
+        .eq('barbearia_id', userProfile?.barbearia_id)
+        .select('*');
+    } else {
+      // Criar novo
+      console.log('➕ Criando nova configuração...');
+      result = await supabase
+        .from('configuracoes')
+        .insert([{
+          chave: 'tempo_tolerancia',
+          valor: novoTempoTolerancia.toString(),
+          descricao: 'Tempo de tolerância em minutos para marcar como não compareceu',
+          barbearia_id: userProfile?.barbearia_id
+        }])
+        .select('*');
     }
     
-    setTempoTolerancia(novoTempoTolerancia);
-    alert('✅ Tempo de tolerância salvo com sucesso!');
+    console.log('💾 Resultado da operação:', result);
+    
+    if (result.error) {
+      console.error('❌ Erro ao salvar:', result.error);
+      alert('Erro ao salvar: ' + result.error.message);
+      return;
+    }
+    
+    // Verificar se foi realmente salvo
+    const { data: verificacao, error: verificacaoError } = await supabase
+      .from('configuracoes')
+      .select('*')
+      .eq('chave', 'tempo_tolerancia')
+      .eq('barbearia_id', userProfile?.barbearia_id);
+    
+    console.log('🔍 Verificação pós-save:', verificacao);
+    
+    if (verificacao && verificacao.length > 0) {
+      const valorSalvo = parseInt(verificacao[0].valor);
+      console.log('✅ Configuração salva com valor:', valorSalvo);
+      
+      // Atualizar estado global
+      setTempoTolerancia(valorSalvo);
+      
+      mostrarPopupSucesso(`Tempo de tolerância salvo: ${valorSalvo} minutos`);
+    } else {
+      console.error('❌ Configuração não foi encontrada após salvar');
+      alert('Erro: configuração não foi salva corretamente');
+    }
     
   } catch (error) {
-    console.error('Erro ao salvar:', error);
-    alert('Erro ao salvar configuração');
+    console.error('❌ Erro geral:', error);
+    alert('Erro ao salvar: ' + error.message);
   } finally {
     setSalvandoTempo(false);
   }
@@ -10494,45 +10546,6 @@ const RelatoriosAgendamentosScreen = ({ onBack }) => {
             </div>
             <div style={{ fontSize: '12px', color: '#F59E0B', fontWeight: '500' }}>
               {metricas.naoCompareceu} no-shows
-            </div>
-          </div>
-        </div>
-
-        {/* ANÁLISE DE PERFORMANCE */}
-        <div style={{
-          background: '#FFFFFF', border: '1px solid #F1F5F9', borderRadius: '12px',
-          padding: '20px', marginBottom: '24px'
-        }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#1E293B', margin: '0 0 16px 0' }}>
-            📊 Análise de Performance
-          </h3>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-            <div style={{ textAlign: 'center', padding: '16px', background: '#DCFCE7', borderRadius: '8px' }}>
-              <div style={{ fontSize: '20px', fontWeight: '700', color: '#10B981', marginBottom: '4px' }}>
-                {metricas.taxaConfirmacao.toFixed(1)}%
-              </div>
-              <div style={{ fontSize: '12px', color: '#064E3B', fontWeight: '600' }}>
-                CONFIRMAÇÃO
-              </div>
-            </div>
-            
-            <div style={{ textAlign: 'center', padding: '16px', background: '#FEE2E2', borderRadius: '8px' }}>
-              <div style={{ fontSize: '20px', fontWeight: '700', color: '#EF4444', marginBottom: '4px' }}>
-                {metricas.taxaCancelamento.toFixed(1)}%
-              </div>
-              <div style={{ fontSize: '12px', color: '#7F1D1D', fontWeight: '600' }}>
-                CANCELAMENTO
-              </div>
-            </div>
-            
-            <div style={{ textAlign: 'center', padding: '16px', background: '#FEF3C7', borderRadius: '8px' }}>
-              <div style={{ fontSize: '20px', fontWeight: '700', color: '#F59E0B', marginBottom: '4px' }}>
-                {metricas.taxaNaoComparecimento.toFixed(1)}%
-              </div>
-              <div style={{ fontSize: '12px', color: '#78350F', fontWeight: '600' }}>
-                NO-SHOW
-              </div>
             </div>
           </div>
         </div>
