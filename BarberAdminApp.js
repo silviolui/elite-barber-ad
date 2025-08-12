@@ -30,6 +30,7 @@ import {
 
 import { supabase } from '../lib/supabase';
 import emailjs from '@emailjs/browser';
+
 // Função para obter data/hora no timezone de Brasília-SP - CORRIGIDA
 const getBrasiliaDate = () => {
   const now = new Date();
@@ -49,9 +50,8 @@ const getBrasiliaDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
-// 📧 CONFIGURAÇÃO DO EMAILJS
 const EMAILJS_CONFIG = {
-  SERVICE_ID: 'service_mf9o7yl',
+  SERVICE_IDthtt: 'service_mf9o7yl',
   TEMPLATE_ID: 'template_rumnodm',  
   PUBLIC_KEY: 'Agv9ONoEJKpqVE7Oi'
 };
@@ -425,7 +425,8 @@ const horariosDefault = diasSemana.map(dia => ({
     appLoading,
     signIn,
     signUp,
-    signOut
+    signOut,
+    loadUserProfile // <-- adicionado aqui
   };
 
   return (
@@ -1894,7 +1895,7 @@ if (horariosError) {
   } finally {
     if (showLoadingState) setIsLoading(false);
   }
-}, [userProfile?.barbearia_id]);
+}, [userProfile]);
 
   // 🔔 VERIFICAR AGENDAMENTOS NÃO NOTIFICADOS
   const verificarAgendamentosNaoNotificados = useCallback(async () => {
@@ -7609,46 +7610,85 @@ const atualizarHorarioTemp = (id, campo, valor) => {
   ));
 };
 
-  const salvarConfiguracao = async () => {
-    setSalvando(true);
-    try {
-      // Tentar atualizar configuração existente
-const { error: updateError } = await supabase
-  .from('configuracoes')
-  .update({ valor: novoMinimo.toString() })
-  .eq('chave', 'min_agendamentos_ativo')
-  .eq('barbearia_id', userProfile?.barbearia_id);
-      
-      if (updateError) {
-        // Se não existe, criar nova
-const { error: insertError } = await supabase
-  .from('configuracoes')
-  .insert([
-    {
-      chave: 'min_agendamentos_ativo',
-      valor: novoMinimo.toString(),
-      descricao: 'Número mínimo de agendamentos para cliente se tornar ativo',
-      barbearia_id: userProfile?.barbearia_id,
+const salvarConfiguracao = async () => {
+  setSalvando(true);
+  try {
+    console.log('💾 === SALVANDO CONFIGURAÇÃO ===');
+    console.log('📊 Valor a ser salvo:', novoMinimo);
+    console.log('🏢 Barbearia ID:', userProfile?.barbearia_id);
+    
+    // Primeiro, verificar se já existe
+    const { data: existingData } = await supabase
+      .from('configuracoes')
+      .select('*')
+      .eq('chave', 'min_agendamentos_ativo')
+      .eq('barbearia_id', userProfile?.barbearia_id);
+    
+    console.log('🔍 Configuração existente:', existingData);
+    
+    let result;
+    if (existingData && existingData.length > 0) {
+      // Atualizar existente
+      console.log('🔄 Atualizando configuração existente...');
+      result = await supabase
+        .from('configuracoes')
+        .update({ 
+          valor: novoMinimo.toString()
+        })
+        .eq('chave', 'min_agendamentos_ativo')
+        .eq('barbearia_id', userProfile?.barbearia_id)
+        .select('*');
+    } else {
+      // Criar novo - REMOVENDO COLUNAS QUE NÃO EXISTEM
+      console.log('➕ Criando nova configuração...');
+      result = await supabase
+        .from('configuracoes')
+        .insert([{
+          chave: 'min_agendamentos_ativo',
+          valor: novoMinimo.toString(),
+          descricao: 'Número mínimo de agendamentos para cliente se tornar ativo',
+          barbearia_id: userProfile?.barbearia_id
+        }])
+        .select('*');
     }
-  ]);
-        
-        if (insertError) {
-          console.error('Erro ao salvar configuração:', insertError);
-          alert('Erro ao salvar configuração');
-          return;
-        }
-      }
-      
-      setMinAgendamentosAtivo(novoMinimo);
-      alert('✅ Configuração salva com sucesso!');
-      
-    } catch (error) {
-      console.error('Erro ao salvar:', error);
-      alert('Erro ao salvar configuração');
-    } finally {
-      setSalvando(false);
+    
+    console.log('💾 Resultado da operação:', result);
+    
+    if (result.error) {
+      console.error('❌ Erro ao salvar:', result.error);
+      mostrarPopupSucesso('Erro ao salvar configuração: ' + result.error.message);
+      return;
     }
-  };
+    
+    // Verificar se foi realmente salvo
+    const { data: verificacao } = await supabase
+      .from('configuracoes')
+      .select('*')
+      .eq('chave', 'min_agendamentos_ativo')
+      .eq('barbearia_id', userProfile?.barbearia_id);
+    
+    console.log('🔍 Verificação pós-save:', verificacao);
+    
+    if (verificacao && verificacao.length > 0) {
+      const valorSalvo = parseInt(verificacao[0].valor);
+      console.log('✅ Configuração salva com valor:', valorSalvo);
+      
+      // Atualizar estado global
+      setMinAgendamentosAtivo(valorSalvo);
+      
+      mostrarPopupSucesso(`Configuração salva: ${valorSalvo} agendamentos mínimos`);
+    } else {
+      console.error('❌ Configuração não foi encontrada após salvar');
+      mostrarPopupSucesso('Erro: configuração não foi salva corretamente');
+    }
+    
+  } catch (error) {
+    console.error('❌ Erro geral:', error);
+    mostrarPopupSucesso('Erro ao salvar: ' + error.message);
+  } finally {
+    setSalvando(false);
+  }
+};
 const salvarTempoTolerancia = async () => {
   setSalvandoTempo(true);
   try {
@@ -7657,7 +7697,7 @@ const salvarTempoTolerancia = async () => {
     console.log('🏢 Barbearia ID:', userProfile?.barbearia_id);
     
     // Primeiro, verificar se já existe
-    const { data: existingData, error: checkError } = await supabase
+    const { data: existingData } = await supabase
       .from('configuracoes')
       .select('*')
       .eq('chave', 'tempo_tolerancia')
@@ -7700,7 +7740,7 @@ const salvarTempoTolerancia = async () => {
     }
     
     // Verificar se foi realmente salvo
-    const { data: verificacao, error: verificacaoError } = await supabase
+   const { data: verificacao } = await supabase
       .from('configuracoes')
       .select('*')
       .eq('chave', 'tempo_tolerancia')
@@ -8257,7 +8297,7 @@ const carregarServicos = useCallback(async () => {
     console.error('Erro ao carregar serviços:', error);
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [userProfile?.barbearia_id]);
+}, []);
 
   useEffect(() => {
     carregarServicos();
@@ -12742,3 +12782,4 @@ const AppWithAuth = () => (
 );
 
 export default AppWithAuth;
+
