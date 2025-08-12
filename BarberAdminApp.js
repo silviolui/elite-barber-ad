@@ -1612,8 +1612,8 @@ ${valorFormatado ? `💰 Valor: ${valorFormatado}` : ''}
 }, [lastProcessedId]);
 
   // 🔔 FUNÇÃO MELHORADA PARA ADICIONAR NOTIFICAÇÕES REAIS
-  const addNotificationReal = (tipo, titulo, mensagemCurta, mensagemDetalhada, agendamento = null) => {
-    console.log('🔔 === ADICIONANDO NOTIFICAÇÃO REAL AO SISTEMA ===');
+const addNotificationReal = useCallback((tipo, titulo, mensagemCurta, mensagemDetalhada, agendamento = null) => {
+      console.log('🔔 === ADICIONANDO NOTIFICAÇÃO REAL AO SISTEMA ===');
     console.log('📋 Tipo:', tipo);
     console.log('📋 Título:', titulo);
     console.log('📋 Mensagem:', mensagemCurta);
@@ -1658,8 +1658,8 @@ setNotifications(prev => {
       tipo: tipo
     });
 
-    console.log('✅ Notificação real adicionada ao sistema!');
-  };
+console.log('✅ Notificação real adicionada ao sistema!');
+  }, []);
   // 💾 SALVAR NOTIFICAÇÕES NO LOCALSTORAGE - ADICIONE AQUI
 const salvarNotificacoes = (novasNotificacoes) => {
   try {
@@ -1814,7 +1814,20 @@ const loadData = useCallback(async (showLoadingState = false) => {
       setMinAgendamentosAtivo(parseInt(configData.valor) || 3);
       console.log('✅ Configuração carregada:', configData.valor);
     }
-    
+    // Carregar tempo de tolerância APENAS desta barbearia
+const { data: tempoToleranciaData, error: tempoToleranciaError } = await supabase
+  .from('configuracoes')
+  .select('*')
+  .eq('chave', 'tempo_tolerancia')
+  .eq('barbearia_id', userProfile.barbearia_id)
+  .single();
+
+if (tempoToleranciaError) {
+  console.log('⚠️ Configuração de tempo de tolerância não encontrada, usando padrão (60)');
+} else {
+  setTempoTolerancia(parseInt(tempoToleranciaData.valor) || 60);
+  console.log('✅ Tempo de tolerância carregado:', tempoToleranciaData.valor);
+}
 // Carregar horários APENAS desta barbearia
 const { data: horariosData, error: horariosError } = await supabase
   .from('horarios_funcionamento')
@@ -3310,74 +3323,140 @@ const removerAgendamento = useCallback(async (agendamentoId, barbeariaId) => {
   if (error) throw error;
 }, [userProfile?.barbearia_id]);
 
-  // 🌙 TIMER PARA MEIA-NOITE
-  useEffect(() => {
-const processarAgendamentosAutomatico = async () => {
-  console.log('🌙 Processamento automático da meia-noite...');
-  
-// CORREÇÃO: Calcular ontem corretamente para processamento da meia-noite
-const dataHoje = getBrasiliaDateString();
-console.log('🌙 Data de hoje:', dataHoje);
-console.log('🌙 Processamento automático da meia-noite iniciado');
-  
-// CORREÇÃO: Só processar agendamentos de ONTEM especificamente
-const ontem = getBrasiliaDate();
-ontem.setDate(ontem.getDate() - 1);
-// eslint-disable-next-line no-unused-vars
-const dataOntem = ontem.getFullYear() + '-' + 
-                 String(ontem.getMonth() + 1).padStart(2, '0') + '-' + 
-                 String(ontem.getDate()).padStart(2, '0');
+// ⏰ ESTADO PARA TEMPO DE TOLERÂNCIA
+const [tempoTolerancia, setTempoTolerancia] = useState(60); // 60 minutos padrão
 
-console.log('🌙 Processamento da meia-noite - Data de ontem:', dataOntem);
-console.log('🌙 Agendamentos totais:', agendamentos.length);
-
-const agendamentosNaoConfirmados = agendamentos.filter(a => {
-  const isOntem = a.data_agendamento === dataOntem;
-  const isAgendado = a.status === 'agendado';
-  const naoConfirmado = a.confirmado === 'false' || a.confirmado === false || !a.confirmado;
+// ⏰ TIMER PARA VERIFICAR AGENDAMENTOS DE HOJE A CADA MINUTO
+useEffect(() => {
+  console.log('⏰ === CONFIGURANDO TIMER DE VERIFICAÇÃO DE AGENDAMENTOS ===');
   
-  console.log('🔍 Verificando:', a.id, {
-    data: a.data_agendamento,
-    isOntem,
-    status: a.status,
-    isAgendado,
-    confirmado: a.confirmado,
-    naoConfirmado
-  });
+  const verificarAgendamentosVencidos = async () => {
+    try {
+      const agora = getBrasiliaDate();
+      const hoje = getBrasiliaDateString();
+      
+      console.log('🔍 Verificando agendamentos vencidos às:', agora.toLocaleTimeString('pt-BR'));
+      
+      // Buscar apenas agendamentos de HOJE que ainda estão agendados
+      const agendamentosHoje = agendamentos.filter(a => 
+        a.data_agendamento === hoje && 
+        a.status === 'agendado' &&
+        (a.confirmado === 'false' || a.confirmado === false || !a.confirmado)
+      );
+      
+      console.log('📋 Agendamentos de hoje não confirmados:', agendamentosHoje.length);
+      
+      for (const agendamento of agendamentosHoje) {
+        // Calcular se passou do tempo limite
+        const horarioAgendamento = agendamento.hora_inicio; // ex: "08:00:00"
+        const [horas, minutos] = horarioAgendamento.substring(0, 5).split(':').map(Number);
+        
+        // Criar data/hora do agendamento
+        const dataHoraAgendamento = new Date();
+        dataHoraAgendamento.setHours(horas, minutos, 0, 0);
+        
+        // Adicionar tempo de tolerância
+        const limiteConfirmacao = new Date(dataHoraAgendamento.getTime() + (tempoTolerancia * 60 * 1000));
+        
+        console.log(`🕐 Agendamento ${agendamento.cliente_nome}:`, {
+          horario: horarioAgendamento.substring(0, 5),
+          limite: limiteConfirmacao.toLocaleTimeString('pt-BR'),
+          agora: agora.toLocaleTimeString('pt-BR'),
+          passou: agora > limiteConfirmacao
+        });
+        
+        // Se passou do tempo limite, processar como não compareceu
+        if (agora > limiteConfirmacao) {
+          console.log(`⚠️ TEMPO LIMITE EXCEDIDO para ${agendamento.cliente_nome}`);
+          console.log(`📅 Horário: ${horarioAgendamento.substring(0, 5)}`);
+          console.log(`⏰ Limite: ${limiteConfirmacao.toLocaleTimeString('pt-BR')}`);
+          console.log(`🕐 Agora: ${agora.toLocaleTimeString('pt-BR')}`);
+          
+          // Mover para histórico como não compareceu
+          await moverParaHistorico(agendamento, 'não compareceu');
+          await removerAgendamento(agendamento.id, userProfile?.barbearia_id);
+          
+          // Notificação sobre não comparecimento
+          const mensagemDetalhada = `
+⚠️ Cliente não compareceu
+
+📋 Cliente: ${agendamento.cliente_nome}
+🔧 Serviço: ${agendamento.servico}
+👨‍💼 Profissional: ${agendamento.nome_profissional}
+📅 Data: ${new Date(agendamento.data_agendamento + 'T00:00:00').toLocaleDateString('pt-BR')}
+🕐 Horário: ${agendamento.hora_inicio?.substring(0, 5)}
+⏰ Tempo limite: ${tempoTolerancia} minutos
+💰 Valor: R$ ${parseFloat(agendamento.valor_servico || 0).toFixed(2).replace('.', ',')}
+
+Agendamento automaticamente movido para histórico.
+          `.trim();
+          
+          addNotificationReal(
+            'nao_compareceu',
+            '⚠️ Cliente Não Compareceu',
+            `${agendamento.cliente_nome} - ${agendamento.servico} (não compareceu)`,
+            mensagemDetalhada,
+            agendamento
+          );
+          
+          console.log('✅ Agendamento processado como não compareceu');
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Erro ao verificar agendamentos vencidos:', error);
+    }
+  };
   
-  return isOntem && isAgendado && naoConfirmado;
-});
-  console.log('🌙 Agendamentos não confirmados encontrados:', agendamentosNaoConfirmados.length);
-
-  for (const agendamento of agendamentosNaoConfirmados) {
-    console.log('🔄 Processando agendamento não confirmado:', agendamento.id, agendamento.cliente_nome);
-    await moverParaHistorico(agendamento, 'não compareceu');
-    await removerAgendamento(agendamento.id);
-  }
-
-  if (agendamentosNaoConfirmados.length > 0) {
-    console.log('✅ Recarregando dados após processamento automático');
-    await loadData(false);
-  }
+  // Verificar a cada 1 minuto
+  const intervalMinuto = setInterval(verificarAgendamentosVencidos, 60000);
   
-  console.log('🌙 Processamento automático da meia-noite concluído!');
-    };
+  // Primeira verificação imediata
+  verificarAgendamentosVencidos();
+  
+  return () => {
+    console.log('🧹 Removendo timer de verificação de agendamentos');
+    clearInterval(intervalMinuto);
+  };
+  
+}, [agendamentos, tempoTolerancia, moverParaHistorico, removerAgendamento, userProfile?.barbearia_id, addNotificationReal]);
 
-   const meiaNoite = getBrasiliaDate();
-    meiaNoite.setHours(24, 0, 0, 0);
+// 🌙 TIMER PARA MEIA-NOITE (MANTIDO PARA LIMPEZA GERAL)
+useEffect(() => {
+  const processarLimpezaMeiaNoite = async () => {
+    console.log('🌙 Limpeza geral da meia-noite...');
     
-    const tempoAteProcessar = meiaNoite.getTime() - getBrasiliaDate().getTime();
-console.log('🌙 Timer da meia-noite configurado para:', new Date(getBrasiliaDate().getTime() + tempoAteProcessar).toLocaleString('pt-BR', {timeZone: 'America/Sao_Paulo'}));
-console.log('🌙 Tempo restante até processamento:', Math.floor(tempoAteProcessar / 1000 / 60), 'minutos'); 
-    const timer = setTimeout(processarAgendamentosAutomatico, tempoAteProcessar);
-    const intervaloDiario = setInterval(processarAgendamentosAutomatico, 24 * 60 * 60 * 1000);
-    
-    return () => {
-      clearTimeout(timer);
-      clearInterval(intervaloDiario);
-    };
+    // Apenas uma limpeza final de segurança para casos extremos
+    const ontem = getBrasiliaDate();
+    ontem.setDate(ontem.getDate() - 1);
 
-    
+    const agendamentosAntigos = agendamentos.filter(a => 
+      a.data_agendamento < getBrasiliaDateString() && 
+      a.status === 'agendado'
+    );
+
+    for (const agendamento of agendamentosAntigos) {
+      await moverParaHistorico(agendamento, 'não compareceu');
+      await removerAgendamento(agendamento.id);
+    }
+
+    if (agendamentosAntigos.length > 0) {
+      await loadData(false);
+      console.log('✅ Limpeza da meia-noite concluída');
+    }
+  };
+
+  const meiaNoite = getBrasiliaDate();
+  meiaNoite.setHours(24, 0, 0, 0);
+  
+  const tempoAteProcessar = meiaNoite.getTime() - getBrasiliaDate().getTime();
+  const timer = setTimeout(processarLimpezaMeiaNoite, tempoAteProcessar);
+  const intervaloDiario = setInterval(processarLimpezaMeiaNoite, 24 * 60 * 60 * 1000);
+  
+  return () => {
+    clearTimeout(timer);
+    clearInterval(intervaloDiario);
+  };
 }, [agendamentos, loadData, moverParaHistorico, removerAgendamento]);
 
 // 🌙 RESET DE NOTIFICAÇÕES À MEIA-NOITE
@@ -7411,6 +7490,8 @@ const abrirModalEdicao = (barbeiro) => {
 };
 
 const ConfiguracoesScreen = () => {
+  const [novoTempoTolerancia, setNovoTempoTolerancia] = useState(tempoTolerancia);
+const [salvandoTempo, setSalvandoTempo] = useState(false);
   const [novoMinimo, setNovoMinimo] = useState(minAgendamentosAtivo);
   const [salvando, setSalvando] = useState(false);
 const iniciarEdicaoHorarios = () => {
@@ -7554,7 +7635,47 @@ const { error: updateError } = await supabase
       setSalvando(false);
     }
   };
-
+const salvarTempoTolerancia = async () => {
+  setSalvandoTempo(true);
+  try {
+    // Tentar atualizar configuração existente
+    const { error: updateError } = await supabase
+      .from('configuracoes')
+      .update({ valor: novoTempoTolerancia.toString() })
+      .eq('chave', 'tempo_tolerancia')
+      .eq('barbearia_id', userProfile?.barbearia_id);
+    
+    if (updateError) {
+      // Se não existe, criar nova
+      const { error: insertError } = await supabase
+        .from('configuracoes')
+        .insert([
+          {
+            chave: 'tempo_tolerancia',
+            valor: novoTempoTolerancia.toString(),
+            descricao: 'Tempo de tolerância em minutos para marcar como não compareceu',
+            created_at: getBrasiliaDate().toISOString(),
+            barbearia_id: userProfile?.barbearia_id,
+          }
+        ]);
+      
+      if (insertError) {
+        console.error('Erro ao salvar tempo de tolerância:', insertError);
+        alert('Erro ao salvar configuração');
+        return;
+      }
+    }
+    
+    setTempoTolerancia(novoTempoTolerancia);
+    alert('✅ Tempo de tolerância salvo com sucesso!');
+    
+  } catch (error) {
+    console.error('Erro ao salvar:', error);
+    alert('Erro ao salvar configuração');
+  } finally {
+    setSalvandoTempo(false);
+  }
+};
   return (
     <div style={{
       minHeight: '100vh',
@@ -7667,7 +7788,96 @@ const { error: updateError } = await supabase
           }}>
             📊 Status Atual
           </h3>
-          
+<div style={{
+  background: '#FFFFFF',
+  border: '1px solid #F1F5F9',
+  borderRadius: '12px',
+  padding: '20px',
+  marginBottom: '20px'
+}}>
+  <h3 style={{
+    fontSize: '16px',
+    fontWeight: '600',
+    color: '#1E293B',
+    margin: '0 0 16px 0'
+  }}>
+    ⏰ Tempo de Tolerância
+  </h3>
+  
+  <p style={{
+    fontSize: '14px',
+    color: '#64748B',
+    margin: '0 0 16px 0'
+  }}>
+    Configure quantos minutos após o horário do agendamento o sistema deve aguardar antes de marcar automaticamente como "não compareceu".
+  </p>
+
+  <div style={{ marginBottom: '8px' }}>
+    <label style={{
+      fontSize: '12px',
+      color: '#64748B',
+      fontWeight: '500',
+      marginBottom: '8px',
+      display: 'block'
+    }}>
+      Tempo de tolerância (minutos)
+    </label>
+<input
+  type="number"
+  min="5"
+  max="240"
+  value={novoTempoTolerancia}
+  onChange={(e) => setNovoTempoTolerancia(parseInt(e.target.value) || 60)}
+  style={{
+    width: '120px',
+    padding: '8px 12px',
+    border: '1px solid #E2E8F0',
+    borderRadius: '6px',
+    fontSize: '14px',
+    color: '#64748B',
+    background: '#FFFFFF',
+    outline: 'none',
+    textAlign: 'center'
+  }}
+/>
+
+  </div>
+
+  <div style={{
+    background: '#F8FAFC',
+    borderRadius: '8px',
+    padding: '12px',
+    marginBottom: '16px',
+    fontSize: '12px',
+    color: '#64748B',
+    lineHeight: '1.5'
+  }}>
+    <strong>Exemplo:</strong><br/>
+    • Agendamento às 08:00<br/>
+- Tolerância: {novoTempoTolerancia} minutos<br/>
+- Se não confirmado até às {(() => {
+  const exemplo = new Date();
+  exemplo.setHours(8, novoTempoTolerancia, 0, 0);
+  return exemplo.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
+})()}, vai automaticamente como "não compareceu"
+    <button
+  onClick={salvarTempoTolerancia}
+  disabled={salvandoTempo || novoTempoTolerancia === tempoTolerancia}
+  style={{
+    background: novoTempoTolerancia === tempoTolerancia ? '#94A3B8' : '#10B981',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '12px 24px',
+    fontSize: '14px',
+    fontWeight: '600',
+    cursor: novoTempoTolerancia === tempoTolerancia ? 'not-allowed' : 'pointer'
+  }}
+>
+  {salvandoTempo ? 'Salvando...' : novoTempoTolerancia === tempoTolerancia ? 'Salvo' : 'Salvar Tempo de Tolerância'}
+</button>
+  </div>
+</div>
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(2, 1fr)',
