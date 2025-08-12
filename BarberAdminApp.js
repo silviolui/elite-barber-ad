@@ -3221,35 +3221,36 @@ if (!horarioDia) {
   ).length);
   setHorariosDisponiveis(slotsDisponiveis);
 };
+// Função global para recarregar serviços
+const recarregarServicosGlobal = useCallback(async () => {
+  try {
+    if (!userProfile?.barbearia_id) {
+      console.log('❌ Barbearia ID não disponível ainda');
+      return;
+    }
+
+    console.log('🔍 Recarregando serviços globalmente para barbearia:', userProfile.barbearia_id);
+
+    const { data, error } = await supabase
+      .from('servicos')
+      .select('*')
+      .eq('barbearia_id', userProfile.barbearia_id)
+      .eq('ativo', true)
+      .order('nome');
+    
+    if (error) throw error;
+    
+    console.log('✅ Serviços recarregados globalmente:', data);
+    setServicosDisponiveis(data || []);
+  } catch (error) {
+    console.error('Erro ao recarregar serviços:', error);
+  }
+}, [userProfile?.barbearia_id]);
+
 // Carregar serviços disponíveis
 useEffect(() => {
-  const carregarServicos = async () => {
-    try {
-      if (!userProfile?.barbearia_id) {
-        console.log('❌ Barbearia ID não disponível ainda');
-        return;
-      }
-
-      console.log('🔍 Carregando serviços para barbearia:', userProfile.barbearia_id);
-
-      const { data, error } = await supabase
-        .from('servicos')
-        .select('*')
-        .eq('barbearia_id', userProfile.barbearia_id)
-        .eq('ativo', true)
-        .order('nome');
-      
-      if (error) throw error;
-      
-      console.log('✅ Serviços carregados:', data);
-      setServicosDisponiveis(data || []);
-    } catch (error) {
-      console.error('Erro ao carregar serviços:', error);
-    }
-  };
-  
-  carregarServicos();
-}, [userProfile?.barbearia_id]); // ← CORRIGIDO: Adicionado userProfile?.barbearia_id nas dependências
+  recarregarServicosGlobal();
+}, [recarregarServicosGlobal]);
 
 // 🔔 VERIFICAR PERMISSÕES E SERVICE WORKER PERIODICAMENTE
 useEffect(() => {
@@ -3782,15 +3783,54 @@ const executarConfirmacao = async () => {
     mostrarPopupSucesso(`Erro ao confirmar agendamento de ${agendamentoPendente.cliente_nome}`);
   }
 };
+// 📱 FORMATAÇÃO PROGRESSIVA DE TELEFONE
+const formatarTelefoneAgendamento = (valor) => {
+  const numeros = valor.replace(/\D/g, '');
+  
+  if (numeros.length === 0) return '';
+  if (numeros.length <= 2) return `(${numeros}`;
+  if (numeros.length <= 6) return `(${numeros.slice(0, 2)}) ${numeros.slice(2)}`;
+  if (numeros.length <= 10) return `(${numeros.slice(0, 2)}) ${numeros.slice(2, 6)}-${numeros.slice(6)}`;
+  if (numeros.length <= 11) return `(${numeros.slice(0, 2)}) ${numeros.slice(2, 7)}-${numeros.slice(7)}`;
+  
+  // Limitar a 11 dígitos
+  return `(${numeros.slice(0, 2)}) ${numeros.slice(2, 7)}-${numeros.slice(7, 11)}`;
+};
 
-
+// 🆔 FORMATAÇÃO PROGRESSIVA DE CPF
+const formatarCPFAgendamento = (valor) => {
+  const numeros = valor.replace(/\D/g, '');
+  
+  if (numeros.length === 0) return '';
+  if (numeros.length <= 3) return numeros;
+  if (numeros.length <= 6) return `${numeros.slice(0, 3)}.${numeros.slice(3)}`;
+  if (numeros.length <= 9) return `${numeros.slice(0, 3)}.${numeros.slice(3, 6)}.${numeros.slice(6)}`;
+  if (numeros.length <= 11) return `${numeros.slice(0, 3)}.${numeros.slice(3, 6)}.${numeros.slice(6, 9)}-${numeros.slice(9)}`;
+  
+  // Limitar a 11 dígitos
+  return `${numeros.slice(0, 3)}.${numeros.slice(3, 6)}.${numeros.slice(6, 9)}-${numeros.slice(9, 11)}`;
+};
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(value || 0);
   };
-
+// 🏢 FUNÇÃO PARA GERAR SIGLA DO ESTABELECIMENTO
+const gerarSiglaEstabelecimento = (nomeEstabelecimento) => {
+  if (!nomeEstabelecimento) return 'BI'; // Fallback para BookIA
+  
+  const palavras = nomeEstabelecimento.trim().split(' ').filter(palavra => palavra.length > 0);
+  
+  if (palavras.length === 0) return 'BI';
+  if (palavras.length === 1) {
+    // Se só tem uma palavra, pega as duas primeiras letras
+    return palavras[0].substring(0, 2).toUpperCase();
+  }
+  
+  // Se tem duas ou mais palavras, pega a primeira letra de cada uma das duas primeiras
+  return (palavras[0].charAt(0) + palavras[1].charAt(0)).toUpperCase();
+};
   // Métricas calculadas
 const hoje = getBrasiliaDateString();
   const agendamentosHoje = agendamentos
@@ -7911,8 +7951,8 @@ const { error: updateError } = await supabase
   );
 };
 // 🔧 TELA DE SERVIÇOS COMPLETA
-const ServicosScreen = () => {
-  const [comboEditando, setComboEditando] = useState(null);
+const ServicosScreen = ({ onServicoChange }) => {
+    const [comboEditando, setComboEditando] = useState(null);
   const [servicos, setServicos] = useState([]);
   const [combos, setCombos] = useState([]);
   const [showServicoModal, setShowServicoModal] = useState(false);
@@ -7975,8 +8015,12 @@ const { error } = await supabase
 
       if (error) throw error;
       
-      await carregarServicos();
-      mostrarPopupSucesso('Item excluído!');
+await carregarServicos();
+// Atualizar serviços globalmente para o modal de profissionais
+if (onServicoChange) {
+  await onServicoChange();
+}
+mostrarPopupSucesso('Item excluído!');
       
     } catch (error) {
       console.error('Erro ao excluir:', error);
@@ -8007,14 +8051,24 @@ const ServicoModal = React.memo(() => {
   const [localAtivo, setLocalAtivo] = useState('true');
 
 
-  // Sincronizar com dados globais apenas quando modal abrir
+// Sincronizar com dados globais apenas quando modal abrir
 useEffect(() => {
   if (showServicoModal) {
     setTimeout(() => {
       setLocalNome(dadosServico.nome || '');
       setLocalDuracao(dadosServico.duracao_minutos || '0');
-      setLocalPreco(dadosServico.preco || '0.00');
-      setLocalAtivo(dadosServico.ativo || 'true');
+      // Corrigir formatação do preço para edição
+      const precoParaEdicao = dadosServico.preco || '0.00';
+      // Se estiver editando, multiplicar por 100 para converter para centavos (formato esperado pelo input)
+      if (servicoEditando && precoParaEdicao !== '0.00') {
+        const valorEmCentavos = (parseFloat(precoParaEdicao) * 100).toString();
+        setLocalPreco(valorEmCentavos);
+      } else {
+        setLocalPreco(precoParaEdicao);
+      }
+      // Garantir que o status ativo seja uma string e tenha o valor correto
+      const statusAtivo = dadosServico.ativo === true || dadosServico.ativo === 'true' ? 'true' : 'false';
+      setLocalAtivo(statusAtivo);
     }, 50);
   }
 }, []);
@@ -8050,11 +8104,15 @@ const servicoData = {
 
       if (error) throw error;
 
-      await carregarServicos();
-      setShowServicoModal(false);
-      setServicoEditando(null);
-      setDadosServico({ nome: '', duracao_minutos: '', preco: '', ativo: 'true' });
-      mostrarPopupSucesso(servicoEditando ? 'Serviço editado!' : 'Serviço criado!');
+await carregarServicos();
+// Atualizar serviços globalmente para o modal de profissionais
+if (onServicoChange) {
+  await onServicoChange();
+}
+setShowServicoModal(false);
+setServicoEditando(null);
+setDadosServico({ nome: '', duracao_minutos: '', preco: '', ativo: 'true' });
+mostrarPopupSucesso(servicoEditando ? 'Serviço editado!' : 'Serviço criado!');
       
     } catch (error) {
       console.error('Erro ao salvar serviço:', error);
@@ -8119,21 +8177,30 @@ const servicoData = {
 <input
   type="text"
   value={(() => {
-    if (!localPreco || localPreco === '0') return '';
-    // Formatar para exibição com separador de milhares
-    const numero = localPreco.replace(/\D/g, '');
-    if (numero.length === 0) return '';
-    if (numero.length === 1) return `0,0${numero}`;
-    if (numero.length === 2) return `0,${numero}`;
-    
-    const reais = numero.slice(0, -2);
-    const centavos = numero.slice(-2);
-    
-    // Adicionar pontos para milhares
-    const reaisFormatados = reais.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-    
-    return `${reaisFormatados},${centavos}`;
-  })()}
+  if (!localPreco || localPreco === '0' || localPreco === '0.00') return '';
+  
+  // Se o valor já está no formato decimal (ex: "43.00"), converter para centavos primeiro
+  let numero;
+  if (localPreco.includes('.') && !localPreco.replace(/\D/g, '').length > 6) {
+    // É um valor decimal do banco, converter para centavos
+    numero = Math.round(parseFloat(localPreco) * 100).toString();
+  } else {
+    // Já está no formato de centavos
+    numero = localPreco.replace(/\D/g, '');
+  }
+  
+  if (numero.length === 0) return '';
+  if (numero.length === 1) return `0,0${numero}`;
+  if (numero.length === 2) return `0,${numero}`;
+  
+  const reais = numero.slice(0, -2);
+  const centavos = numero.slice(-2);
+  
+  // Adicionar pontos para milhares
+  const reaisFormatados = reais.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  
+  return `${reaisFormatados},${centavos}`;
+})()}
   onChange={(e) => {
     let valor = e.target.value;
     // Remove tudo que não é número
@@ -8165,19 +8232,21 @@ const servicoData = {
           </label>
           <div style={{ display: 'flex', gap: '12px' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-              <input
-                type="radio"
-                checked={localAtivo === 'true'}
-                onChange={() => setLocalAtivo('true')}
-              />
+ <input
+  type="radio"
+  name="status_ativo"
+  checked={localAtivo === 'true'}
+  onChange={() => setLocalAtivo('true')}
+/>
               <span style={{ fontSize: '14px', color: '#10B981' }}>Ativo</span>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-              <input
-                type="radio"
-                checked={localAtivo === 'false'}
-                onChange={() => setLocalAtivo('false')}
-              />
+<input
+  type="radio"
+  name="status_ativo"
+  checked={localAtivo === 'false'}
+  onChange={() => setLocalAtivo('false')}
+/>
               <span style={{ fontSize: '14px', color: '#EF4444' }}>Inativo</span>
             </label>
           </div>
@@ -8302,17 +8371,21 @@ const comboData = {
 
       if (error) throw error;
 
-      await carregarServicos();
-      setShowComboModal(false);
-      setComboEditando(null);
-      setDadosCombo({
-        nome: '',
-        servicos_selecionados: [],
-        tipo_combo: 'Bronze',
-        preco: '',
-        ativo: 'true'
-      });
-      mostrarPopupSucesso(comboEditando ? 'Combo editado com sucesso!' : 'Combo criado com sucesso!');
+await carregarServicos();
+// Atualizar serviços globalmente para o modal de profissionais
+if (onServicoChange) {
+  await onServicoChange();
+}
+setShowComboModal(false);
+setComboEditando(null);
+setDadosCombo({
+  nome: '',
+  servicos_selecionados: [],
+  tipo_combo: 'Bronze',
+  preco: '',
+  ativo: 'true'
+});
+mostrarPopupSucesso(comboEditando ? 'Combo editado com sucesso!' : 'Combo criado com sucesso!');
       
     } catch (error) {
       console.error('Erro ao salvar combo:', error);
@@ -8448,19 +8521,21 @@ const comboData = {
           </label>
           <div style={{ display: 'flex', gap: '12px' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-              <input
-                type="radio"
-                checked={localAtivo === 'true'}
-                onChange={() => setLocalAtivo('true')}
-              />
+ <input
+  type="radio"
+  name="status_ativo"
+  checked={localAtivo === 'true'}
+  onChange={() => setLocalAtivo('true')}
+/>
               <span style={{ fontSize: '14px', color: '#10B981' }}>Ativo</span>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-              <input
-                type="radio"
-                checked={localAtivo === 'false'}
-                onChange={() => setLocalAtivo('false')}
-              />
+<input
+  type="radio"
+  name="status_ativo"
+  checked={localAtivo === 'false'}
+  onChange={() => setLocalAtivo('false')}
+/>
               <span style={{ fontSize: '14px', color: '#EF4444' }}>Inativo</span>
             </label>
           </div>
@@ -8559,16 +8634,16 @@ const comboData = {
                 </p>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   <button
-                    onClick={() => {
-                      setServicoEditando(servico);
-                      setDadosServico({
-                        nome: servico.nome,
-                        duracao_minutos: servico.duracao_minutos.toString(),
-                        preco: servico.preco.toString(),
-                        ativo: servico.ativo
-                      });
-                      setShowServicoModal(true);
-                    }}
+onClick={() => {
+  setServicoEditando(servico);
+  setDadosServico({
+    nome: servico.nome,
+    duracao_minutos: servico.duracao_minutos.toString(),
+    preco: servico.preco.toString(),
+    ativo: servico.ativo === true || servico.ativo === 'true' ? 'true' : 'false'
+  });
+  setShowServicoModal(true);
+}}
                     style={{
                       background: '#3B82F6', color: 'white', border: 'none', borderRadius: '4px',
                       padding: '4px 8px', fontSize: '10px', fontWeight: '600', cursor: 'pointer'
@@ -11802,7 +11877,7 @@ const ComingSoonScreen = ({ title }) => (
       case 'configuracoes':
         return <ConfiguracoesScreen />;
       case 'servicos':
-        return <ServicosScreen />;
+  return <ServicosScreen onServicoChange={recarregarServicosGlobal} />;
       case 'clientes':
         return <ClientesScreen />;
       case 'produtos':
@@ -11904,40 +11979,48 @@ const ComingSoonScreen = ({ title }) => (
         />
       </div>
 
-      {/* Telefone */}
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ fontSize: '12px', color: '#64748B', fontWeight: '500', marginBottom: '4px', display: 'block' }}>
-          Telefone *
-        </label>
-        <input
-          type="tel"
-          value={dadosAgendamento.telefone_cliente}
-          onChange={(e) => setDadosAgendamento(prev => ({ ...prev, telefone_cliente: e.target.value }))}
-          placeholder="(00) 00000-0000"
-          style={{
-            width: '100%', padding: '12px', border: '1px solid #E2E8F0',
-            borderRadius: '8px', fontSize: '16px', outline: 'none', boxSizing: 'border-box'
-          }}
-        />
-      </div>
+     
+{/* Telefone */}
+<div style={{ marginBottom: '16px' }}>
+  <label style={{ fontSize: '12px', color: '#64748B', fontWeight: '500', marginBottom: '4px', display: 'block' }}>
+    Telefone *
+  </label>
+  <input
+    type="tel"
+    value={dadosAgendamento.telefone_cliente}
+    onChange={(e) => {
+      const valorFormatado = formatarTelefoneAgendamento(e.target.value);
+      setDadosAgendamento(prev => ({ ...prev, telefone_cliente: valorFormatado }));
+    }}
+    placeholder="(00) 00000-0000"
+    maxLength="15"
+    style={{
+      width: '100%', padding: '12px', border: '1px solid #E2E8F0',
+      borderRadius: '8px', fontSize: '16px', outline: 'none', boxSizing: 'border-box'
+    }}
+  />
+</div>
 
-      {/* CPF */}
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ fontSize: '12px', color: '#64748B', fontWeight: '500', marginBottom: '4px', display: 'block' }}>
-          CPF (opcional)
-        </label>
-        <input
-          type="text"
-          value={dadosAgendamento.cliente_cpf || ''}
-          onChange={(e) => setDadosAgendamento(prev => ({ ...prev, cliente_cpf: e.target.value }))}
-          placeholder="000.000.000-00"
-          style={{
-            width: '100%', padding: '12px', border: '1px solid #E2E8F0',
-            borderRadius: '8px', fontSize: '16px', outline: 'none', boxSizing: 'border-box'
-          }}
-        />
-      </div>
-
+{/* CPF */}
+<div style={{ marginBottom: '16px' }}>
+  <label style={{ fontSize: '12px', color: '#64748B', fontWeight: '500', marginBottom: '4px', display: 'block' }}>
+    CPF (opcional)
+  </label>
+  <input
+    type="text"
+    value={dadosAgendamento.cliente_cpf || ''}
+    onChange={(e) => {
+      const valorFormatado = formatarCPFAgendamento(e.target.value);
+      setDadosAgendamento(prev => ({ ...prev, cliente_cpf: valorFormatado }));
+    }}
+    placeholder="000.000.000-00"
+    maxLength="14"
+    style={{
+      width: '100%', padding: '12px', border: '1px solid #E2E8F0',
+      borderRadius: '8px', fontSize: '16px', outline: 'none', boxSizing: 'border-box'
+    }}
+  />
+</div>
       {/* Barbeiro - MOVIDO PARA CIMA */}
       <CustomSelect
         value={dadosAgendamento.barbeiro_selecionado}
