@@ -8639,19 +8639,36 @@ onClick={() => {
     padding: '12px', opacity: combo.ativo ? 1 : 0.6
   }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-      <div>
-        <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#1E293B', margin: '0 0 4px 0' }}>
-          Combo {combo.Combo}
-        </h4>
-        <div style={{
-          fontSize: '12px',
-          color: '#64748B',
-          fontWeight: '500',
-          lineHeight: '1.3'
-        }}>
-          {combo.nome}
-        </div>
-      </div>
+<div>
+  <h4 style={{ 
+    fontSize: '14px', 
+    fontWeight: '600', 
+    margin: '0 0 8px 0',
+    background: combo.Combo === 'Diamante' ? '#DBEAFE' :
+               combo.Combo === 'Ouro' ? '#FEF3C7' :
+               combo.Combo === 'Prata' ? '#F1F5F9' :
+               combo.Combo === 'Bronze' ? '#FED7AA' :
+               combo.Combo === 'Cobre' ? '#FECACA' : '#E5E7EB',
+    color: combo.Combo === 'Diamante' ? '#1E40AF' :
+           combo.Combo === 'Ouro' ? '#92400E' :
+           combo.Combo === 'Prata' ? '#475569' :
+           combo.Combo === 'Bronze' ? '#C2410C' :
+           combo.Combo === 'Cobre' ? '#B91C1C' : '#374151',
+    padding: '6px 12px',
+    borderRadius: '12px',
+    display: 'inline-block'
+  }}>
+    {combo.Combo}
+  </h4>
+  <div style={{
+    fontSize: '12px',
+    color: '#64748B',
+    fontWeight: '500',
+    lineHeight: '1.3'
+  }}>
+    {combo.nome}
+  </div>
+</div>
       <div style={{
         background: combo.ativo ? '#DCFCE7' : '#FEE2E2',
         color: combo.ativo ? '#166534' : '#B91C1C',
