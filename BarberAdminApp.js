@@ -6593,31 +6593,21 @@ const agendamentosFiltrados = agendamentos
                   }}>
                     Barbeiro
                   </label>
-                  <select
-                    value={filtroBarbeiro}
-                    onChange={(e) => setFiltroBarbeiro(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      border: '1px solid #E2E8F0',
-                      borderRadius: '6px',
-                      fontSize: '14px',
-                      color: '#64748B',
-                      background: '#FFFFFF',
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  >
-                    <option value="">Todos os barbeiros</option>
-                    {barbeiros
-                      .filter(b => b.ativo === 'true' || b.ativo === true)
-                      .map(barbeiro => (
-                        <option key={barbeiro.barbeiro_id} value={barbeiro.barbeiro_id}>
-                          {barbeiro.nome}
-                        </option>
-                      ))
-                    }
-                  </select>
+                  <CustomSelect
+  value={filtroBarbeiro}
+  onChange={setFiltroBarbeiro}
+  options={[
+    { value: '', label: 'Todos' },
+    ...barbeiros
+      .filter(b => b.ativo === 'true' || b.ativo === true)
+      .map(barbeiro => ({
+        value: barbeiro.barbeiro_id,
+        label: barbeiro.nome
+      }))
+  ]}
+  label=""
+  placeholder="Selecionar barbeiro..."
+/>
                 </div>
 
                 {/* FILTRO POR SERVIÇO */}
