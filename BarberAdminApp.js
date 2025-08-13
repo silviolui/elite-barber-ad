@@ -6317,91 +6317,96 @@ const AgendaScreen = () => {
   const [filtroDataFim, setFiltroDataFim] = useState('');
   const [mostrarFiltrosAvancados, setMostrarFiltrosAvancados] = useState(false);
 
-  const agendamentosFiltrados = agendamentos
-    .filter(a => {
-      // CORREÇÃO: Usar timezone correto de São Paulo para todos os cálculos
-      const hoje = getBrasiliaDate();
-      const hojeStr = getBrasiliaDateString();
-      
-      // AMANHÃ - CORRIGIDO
-      const amanhaBrasilia = new Date(hoje.toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
-      amanhaBrasilia.setDate(amanhaBrasilia.getDate() + 1);
-      const amanhaStr = amanhaBrasilia.getFullYear() + '-' + 
-                       String(amanhaBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
-                       String(amanhaBrasilia.getDate()).padStart(2, '0');
-      
-      // SEMANA ATUAL - CORRIGIDO
-      const inicioSemanaBrasilia = new Date(hoje.toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
-      const diaSemana = inicioSemanaBrasilia.getDay();
-      const diasParaSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
-      inicioSemanaBrasilia.setDate(inicioSemanaBrasilia.getDate() + diasParaSegunda);
-      
-      const fimSemanaBrasilia = new Date(inicioSemanaBrasilia);
-      fimSemanaBrasilia.setDate(inicioSemanaBrasilia.getDate() + 6);
-      
-      const inicioSemanaStr = inicioSemanaBrasilia.getFullYear() + '-' + 
-                             String(inicioSemanaBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
-                             String(inicioSemanaBrasilia.getDate()).padStart(2, '0');
-      const fimSemanaStr = fimSemanaBrasilia.getFullYear() + '-' + 
-                          String(fimSemanaBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
-                          String(fimSemanaBrasilia.getDate()).padStart(2, '0');
-      
-      // MÊS ATUAL - CORRIGIDO
-      const inicioMesBrasilia = new Date(hoje.toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
-      inicioMesBrasilia.setDate(1); // Primeiro dia do mês
-      
-      const fimMesBrasilia = new Date(inicioMesBrasilia);
-      fimMesBrasilia.setMonth(fimMesBrasilia.getMonth() + 1);
-      fimMesBrasilia.setDate(0); // Último dia do mês
-      
-      const inicioMesStr = inicioMesBrasilia.getFullYear() + '-' + 
-                          String(inicioMesBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
-                          String(inicioMesBrasilia.getDate()).padStart(2, '0');
-      const fimMesStr = fimMesBrasilia.getFullYear() + '-' + 
-                       String(fimMesBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
-                       String(fimMesBrasilia.getDate()).padStart(2, '0');
-      
-      // FILTRO POR PERÍODO (mantido como estava)
-      let passaFiltroPeriodo = false;
-      switch(filtroAtivo) {
-        case 'todos':
-          passaFiltroPeriodo = a.data_agendamento >= hojeStr;
-          break;
-        case 'amanha':
-          passaFiltroPeriodo = a.data_agendamento === amanhaStr;
-          break;
-        case 'semana':
-          passaFiltroPeriodo = a.data_agendamento >= hojeStr && a.data_agendamento >= inicioSemanaStr && a.data_agendamento <= fimSemanaStr;
-          break;
-        case 'mes':
-          passaFiltroPeriodo = a.data_agendamento >= hojeStr && a.data_agendamento >= inicioMesStr && a.data_agendamento <= fimMesStr;
-          break;
-        default:
-          passaFiltroPeriodo = a.data_agendamento >= hojeStr;
-      }
+const agendamentosFiltrados = agendamentos
+  .filter(a => {
+    // CORREÇÃO: Usar timezone correto de São Paulo para todos os cálculos
+    const hoje = getBrasiliaDate();
+    const hojeStr = getBrasiliaDateString();
+    
+    // AMANHÃ - CORRIGIDO
+    const amanhaBrasilia = new Date(hoje.toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
+    amanhaBrasilia.setDate(amanhaBrasilia.getDate() + 1);
+    const amanhaStr = amanhaBrasilia.getFullYear() + '-' + 
+                     String(amanhaBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
+                     String(amanhaBrasilia.getDate()).padStart(2, '0');
+    
+    // SEMANA ATUAL - CORRIGIDO
+    const inicioSemanaBrasilia = new Date(hoje.toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
+    const diaSemana = inicioSemanaBrasilia.getDay();
+    const diasParaSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
+    inicioSemanaBrasilia.setDate(inicioSemanaBrasilia.getDate() + diasParaSegunda);
+    
+    const fimSemanaBrasilia = new Date(inicioSemanaBrasilia);
+    fimSemanaBrasilia.setDate(inicioSemanaBrasilia.getDate() + 6);
+    
+    const inicioSemanaStr = inicioSemanaBrasilia.getFullYear() + '-' + 
+                           String(inicioSemanaBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
+                           String(inicioSemanaBrasilia.getDate()).padStart(2, '0');
+    const fimSemanaStr = fimSemanaBrasilia.getFullYear() + '-' + 
+                        String(fimSemanaBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
+                        String(fimSemanaBrasilia.getDate()).padStart(2, '0');
+    
+    // MÊS ATUAL - CORRIGIDO
+    const inicioMesBrasilia = new Date(hoje.toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
+    inicioMesBrasilia.setDate(1); // Primeiro dia do mês
+    
+    const fimMesBrasilia = new Date(inicioMesBrasilia);
+    fimMesBrasilia.setMonth(fimMesBrasilia.getMonth() + 1);
+    fimMesBrasilia.setDate(0); // Último dia do mês
+    
+    const inicioMesStr = inicioMesBrasilia.getFullYear() + '-' + 
+                        String(inicioMesBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
+                        String(inicioMesBrasilia.getDate()).padStart(2, '0');
+    const fimMesStr = fimMesBrasilia.getFullYear() + '-' + 
+                     String(fimMesBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
+                     String(fimMesBrasilia.getDate()).padStart(2, '0');
+    
+    // FILTRO POR PERÍODO (mantido como estava)
+    let passaFiltroPeriodo = false;
+    switch(filtroAtivo) {
+      case 'todos':
+        passaFiltroPeriodo = a.data_agendamento >= hojeStr;
+        break;
+      case 'amanha':
+        passaFiltroPeriodo = a.data_agendamento === amanhaStr;
+        break;
+      case 'semana':
+        passaFiltroPeriodo = a.data_agendamento >= hojeStr && a.data_agendamento >= inicioSemanaStr && a.data_agendamento <= fimSemanaStr;
+        break;
+      case 'mes':
+        passaFiltroPeriodo = a.data_agendamento >= hojeStr && a.data_agendamento >= inicioMesStr && a.data_agendamento <= fimMesStr;
+        break;
+      default:
+        passaFiltroPeriodo = a.data_agendamento >= hojeStr;
+    }
 
-      // NOVOS FILTROS AVANÇADOS
-      const passaFiltroBarbeiro = !filtroBarbeiro || a.barbeiro_id === filtroBarbeiro;
-      const passaFiltroServico = !filtroServico || a.servico.toLowerCase().includes(filtroServico.toLowerCase());
-      const passaFiltroDataInicio = !filtroDataInicio || a.data_agendamento >= filtroDataInicio;
-      const passaFiltroDataFim = !filtroDataFim || a.data_agendamento <= filtroDataFim;
+    // CORREÇÃO: Garantir que a comparação do barbeiro seja feita corretamente
+    const passaFiltroBarbeiro = !filtroBarbeiro || String(a.barbeiro_id) === String(filtroBarbeiro);
+    const passaFiltroServico = !filtroServico || a.servico.toLowerCase().includes(filtroServico.toLowerCase());
+    const passaFiltroDataInicio = !filtroDataInicio || a.data_agendamento >= filtroDataInicio;
+    const passaFiltroDataFim = !filtroDataFim || a.data_agendamento <= filtroDataFim;
 
-      // Aplicar filtros avançados apenas se algum estiver ativo
-      const temFiltrosAvancados = filtroBarbeiro || filtroServico || filtroDataInicio || filtroDataFim;
+    // CORREÇÃO: Aplicar TANTO o filtro de período QUANTO os filtros avançados
+    const temFiltrosAvancados = filtroBarbeiro || filtroServico || filtroDataInicio || filtroDataFim;
+    
+    if (temFiltrosAvancados) {
+      // NOVA LÓGICA: Combinar filtro de período com filtros avançados
+      // Se tem filtros de data específicos (início/fim), usar eles; senão usar filtro de período
+      const passaFiltroTemporal = (filtroDataInicio || filtroDataFim) ? 
+        (passaFiltroDataInicio && passaFiltroDataFim) : 
+        passaFiltroPeriodo;
       
-      if (temFiltrosAvancados) {
-        // Se tem filtros avançados, usar apenas eles (ignorar filtro de período)
-        return passaFiltroBarbeiro && passaFiltroServico && passaFiltroDataInicio && passaFiltroDataFim;
-      } else {
-        // Se não tem filtros avançados, usar filtro de período
-        return passaFiltroPeriodo;
-      }
-    })
-    .sort((a, b) => {
-      const dataComparison = a.data_agendamento.localeCompare(b.data_agendamento);
-      if (dataComparison !== 0) return dataComparison;
-      return a.hora_inicio.localeCompare(b.hora_inicio);
-    });
+      return passaFiltroBarbeiro && passaFiltroServico && passaFiltroTemporal;
+    } else {
+      // Se não tem filtros avançados, usar apenas filtro de período
+      return passaFiltroPeriodo;
+    }
+  })
+  .sort((a, b) => {
+    const dataComparison = a.data_agendamento.localeCompare(b.data_agendamento);
+    if (dataComparison !== 0) return dataComparison;
+    return a.hora_inicio.localeCompare(b.hora_inicio);
+  });
 
   // Função para limpar todos os filtros
   const limparFiltros = () => {
