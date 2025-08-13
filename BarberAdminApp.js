@@ -51,7 +51,7 @@ const getBrasiliaDateString = () => {
 };
 
 const EMAILJS_CONFIG = {
-  SERVICE_IDthtt: 'service_mf9o7yl',
+  SERVICE_ID: 'service_mf9o7yl',
   TEMPLATE_ID: 'template_rumnodm',  
   PUBLIC_KEY: 'Agv9ONoEJKpqVE7Oi'
 };
@@ -1309,6 +1309,7 @@ const dadosCompletos = {
 
 const App = () => {
   const { user, userProfile, appLoading, signOut } = useAuth();
+  const [formaPagamento, setFormaPagamento] = useState('');
   const [currentScreen, setCurrentScreen] = useState('dashboard');
   const [, setIsLoading] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
@@ -3299,7 +3300,7 @@ useEffect(() => {
 }, []);
 
 
-const moverParaHistorico = useCallback(async (agendamento, novoStatus) => {
+const moverParaHistorico = useCallback(async (agendamento, novoStatus, formaPagamento = null) => {
   const historicoData = {
     id: `HIST-${agendamento.id}`,
     agendamento_original_id: agendamento.id.replace('AG-', ''),
@@ -3317,7 +3318,8 @@ const moverParaHistorico = useCallback(async (agendamento, novoStatus) => {
     observacoes: agendamento.observacoes || '',
     data_acao: getBrasiliaDate().toISOString(),
     nome_profissional: agendamento.nome_profissional,
-    valor_servico: String(agendamento.valor_servico || '0')
+    valor_servico: String(agendamento.valor_servico || '0'),
+    forma_pagamento: formaPagamento
   };
 
   const { error } = await supabase
@@ -3325,7 +3327,6 @@ const moverParaHistorico = useCallback(async (agendamento, novoStatus) => {
     .insert([historicoData]);
   
   if (error) throw error;
-// eslint-disable-next-line react-hooks/exhaustive-deps
 }, [userProfile?.barbearia_id]);
 
 // REMOVER AGENDAMENTO
@@ -3820,10 +3821,11 @@ const confirmarAgendamento = async (agendamento) => {
 };
 
 const executarConfirmacao = async () => {
-  if (!agendamentoPendente) return;
+  if (!agendamentoPendente || !formaPagamento) return;
   
   try {
     console.log('🔧 Confirmando agendamento:', agendamentoPendente);
+    console.log('💳 Forma de pagamento:', formaPagamento);
     
     // Fechar modal primeiro
     setShowConfirmModal(false);
@@ -3833,13 +3835,23 @@ const executarConfirmacao = async () => {
     setAgendamentos(prev => prev.filter(a => a.id !== agendamentoPendente.id));
     
     // Processo no background
-    await moverParaHistorico(agendamentoPendente, 'confirmado');
+    await moverParaHistorico(agendamentoPendente, 'confirmado', formaPagamento);
     await removerAgendamento(agendamentoPendente.id);
+    
+    // Limpar forma de pagamento
+    setFormaPagamento('');
     
     // Mostrar popup de sucesso
     mostrarPopupSucesso(`Agendamento de ${agendamentoPendente.cliente_nome} confirmado com sucesso!`);
     
     // 🔔 NOTIFICAÇÃO DE CONFIRMAÇÃO COM DADOS REAIS
+    const formaPagamentoTexto = {
+      'pix': 'PIX',
+      'dinheiro': 'Dinheiro',
+      'cartao_credito': 'Cartão de Crédito',
+      'cartao_debito': 'Cartão de Débito'
+    }[formaPagamento] || formaPagamento;
+    
     const mensagemDetalhada = `
 ✅ Agendamento confirmado com sucesso!
 
@@ -3849,6 +3861,7 @@ const executarConfirmacao = async () => {
 📅 Data: ${new Date(agendamentoPendente.data_agendamento + 'T00:00:00').toLocaleDateString('pt-BR', {timeZone: 'America/Sao_Paulo'})}
 🕐 Horário: ${agendamentoPendente.hora_inicio?.substring(0, 5)}
 💰 Valor: R$ ${parseFloat(agendamentoPendente.valor_servico || 0).toFixed(2).replace('.', ',')}
+💳 Pagamento: ${formaPagamentoTexto}
     `.trim();
     
     addNotificationReal(
@@ -6116,7 +6129,7 @@ const Header = ({ title, subtitle, showBack = false, onBackAction }) => (
     }}
   >
     <Check size={12} />
-    Confirmar
+    Confirmar pagamento
   </button>
 </div>
 
@@ -11690,7 +11703,88 @@ const RelatoriosFinanceiroScreen = ({ onBack }) => {
             </div>
           </div>
         </div>
+{/* MÉTRICAS POR FORMA DE PAGAMENTO */}
+<div style={{
+  background: '#FFFFFF',
+  border: '1px solid #F1F5F9',
+  borderRadius: '12px',
+  padding: '20px',
+  marginBottom: '24px'
+}}>
+  <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#1E293B', margin: '0 0 16px 0' }}>
+    💳 Vendas por Forma de Pagamento
+  </h3>
+  
+  <div style={{
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: '16px'
+  }}>
+    {/* PIX */}
+    <div style={{
+      background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '8px', padding: '16px'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+        <span style={{ fontSize: '16px' }}>📱</span>
+        <span style={{ fontSize: '12px', color: '#166534', fontWeight: '500' }}>PIX</span>
+      </div>
+      <div style={{ fontSize: '18px', fontWeight: '700', color: '#1E293B' }}>
+        {dadosFiltrados.filter(item => item.forma_pagamento === 'pix').length}
+      </div>
+      <div style={{ fontSize: '11px', color: '#16A34A', fontWeight: '500' }}>
+        R$ {formatCurrency(dadosFiltrados.filter(item => item.forma_pagamento === 'pix').reduce((sum, item) => sum + parseFloat(item.valor_servico || 0), 0))}
+      </div>
+    </div>
 
+    {/* DINHEIRO */}
+    <div style={{
+      background: '#FFFBEB', border: '1px solid #FEF3C7', borderRadius: '8px', padding: '16px'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+        <span style={{ fontSize: '16px' }}>💵</span>
+        <span style={{ fontSize: '12px', color: '#92400E', fontWeight: '500' }}>Dinheiro</span>
+      </div>
+      <div style={{ fontSize: '18px', fontWeight: '700', color: '#1E293B' }}>
+        {dadosFiltrados.filter(item => item.forma_pagamento === 'dinheiro').length}
+      </div>
+      <div style={{ fontSize: '11px', color: '#D97706', fontWeight: '500' }}>
+        R$ {formatCurrency(dadosFiltrados.filter(item => item.forma_pagamento === 'dinheiro').reduce((sum, item) => sum + parseFloat(item.valor_servico || 0), 0))}
+      </div>
+    </div>
+
+    {/* CARTÃO CRÉDITO */}
+    <div style={{
+      background: '#EFF6FF', border: '1px solid #DBEAFE', borderRadius: '8px', padding: '16px'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+        <span style={{ fontSize: '16px' }}>💳</span>
+        <span style={{ fontSize: '12px', color: '#1E40AF', fontWeight: '500' }}>Cartão Crédito</span>
+      </div>
+      <div style={{ fontSize: '18px', fontWeight: '700', color: '#1E293B' }}>
+        {dadosFiltrados.filter(item => item.forma_pagamento === 'cartao_credito').length}
+      </div>
+      <div style={{ fontSize: '11px', color: '#2563EB', fontWeight: '500' }}>
+        R$ {formatCurrency(dadosFiltrados.filter(item => item.forma_pagamento === 'cartao_credito').reduce((sum, item) => sum + parseFloat(item.valor_servico || 0), 0))}
+      </div>
+    </div>
+
+    {/* CARTÃO DÉBITO */}
+    <div style={{
+      background: '#F3E8FF', border: '1px solid #E9D5FF', borderRadius: '8px', padding: '16px'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+        <span style={{ fontSize: '16px' }}>💳</span>
+        <span style={{ fontSize: '12px', color: '#7C3AED', fontWeight: '500' }}>Cartão Débito</span>
+      </div>
+      <div style={{ fontSize: '18px', fontWeight: '700', color: '#1E293B' }}>
+        {dadosFiltrados.filter(item => item.forma_pagamento === 'cartao_debito').length}
+      </div>
+      <div style={{ fontSize: '11px', color: '#8B5CF6', fontWeight: '500' }}>
+        R$ {formatCurrency(dadosFiltrados.filter(item => item.forma_pagamento === 'cartao_debito').reduce((sum, item) => sum + parseFloat(item.valor_servico || 0), 0))}
+      </div>
+    </div>
+  </div>
+</div>
        {/* GRÁFICO DE FATURAMENTO DIÁRIO */}
         {dadosGrafico.length > 0 && (
           <div style={{
@@ -12581,120 +12675,195 @@ const ComingSoonScreen = ({ title }) => (
       <SuccessPopup />  
       <EditClientModal />
       <ProfissionalModal />
-      {/* MODAL DE CONFIRMAÇÃO */}
-      {showConfirmModal && agendamentoPendente && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.4)',
-          zIndex: 2000,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '16px'
+{/* MODAL DE CONFIRMAÇÃO */}
+{showConfirmModal && agendamentoPendente && (
+  <div style={{
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(0, 0, 0, 0.4)',
+    zIndex: 2000,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '16px'
+  }}>
+    <div style={{
+      background: '#FFFFFF',
+      borderRadius: '16px',
+      padding: '24px',
+      maxWidth: '400px',
+      width: '100%',
+      textAlign: 'center'
+    }}>
+      <div style={{
+        width: '64px',
+        height: '64px',
+        background: '#FEF3C7',
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        margin: '0 auto 16px'
+      }}>
+        <CheckCircle size={32} color="#F59E0B" />
+      </div>
+      
+      <h3 style={{
+        fontSize: '18px',
+        fontWeight: '700',
+        color: '#1E293B',
+        margin: '0 0 8px 0'
+      }}>
+        Confirmar Pagamento?
+      </h3>
+      
+      <p style={{
+        fontSize: '14px',
+        color: '#64748B',
+        margin: '0 0 16px 0',
+        lineHeight: '1.5'
+      }}>
+        Tem certeza que deseja confirmar o pagamento de <strong>{agendamentoPendente.cliente_nome}</strong>?
+      </p>
+      
+      <div style={{
+        background: '#F8FAFC',
+        borderRadius: '8px',
+        padding: '12px',
+        marginBottom: '16px',
+        fontSize: '12px',
+        color: '#64748B',
+        textAlign: 'left'
+      }}>
+        <div><strong>Serviço:</strong> {agendamentoPendente.servico}</div>
+        <div><strong>Profissional:</strong> {agendamentoPendente.nome_profissional}</div>
+        <div><strong>Horário:</strong> {agendamentoPendente.hora_inicio?.substring(0, 5)}</div>
+        {agendamentoPendente.valor_servico && (
+          <div><strong>Valor:</strong> R$ {parseFloat(agendamentoPendente.valor_servico).toFixed(2).replace('.', ',')}</div>
+        )}
+      </div>
+
+      {/* NOVA SEÇÃO - FORMA DE PAGAMENTO */}
+      <div style={{
+        background: '#F0FDF4',
+        border: '1px solid #BBF7D0',
+        borderRadius: '8px',
+        padding: '16px',
+        marginBottom: '20px',
+        textAlign: 'left'
+      }}>
+        <label style={{
+          fontSize: '14px',
+          fontWeight: '600',
+          color: '#1E293B',
+          marginBottom: '12px',
+          display: 'block'
         }}>
-          <div style={{
-            background: '#FFFFFF',
-            borderRadius: '16px',
-            padding: '24px',
-            maxWidth: '400px',
-            width: '100%',
-            textAlign: 'center'
-          }}>
-            <div style={{
-              width: '64px',
-              height: '64px',
-              background: '#FEF3C7',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px'
-            }}>
-              <CheckCircle size={32} color="#F59E0B" />
-            </div>
-            
-            <h3 style={{
-              fontSize: '18px',
-              fontWeight: '700',
-              color: '#1E293B',
-              margin: '0 0 8px 0'
-            }}>
-              Confirmar Pagamento?
-            </h3>
-            
-            <p style={{
-              fontSize: '14px',
-              color: '#64748B',
-              margin: '0 0 16px 0',
-              lineHeight: '1.5'
-            }}>
-              Tem certeza que deseja confirmar o pagamento de <strong>{agendamentoPendente.cliente_nome}</strong>?
-            </p>
-            
-            <div style={{
-              background: '#F8FAFC',
-              borderRadius: '8px',
-              padding: '12px',
-              marginBottom: '20px',
-              fontSize: '12px',
-              color: '#64748B',
-              textAlign: 'left'
-            }}>
-              <div><strong>Serviço:</strong> {agendamentoPendente.servico}</div>
-              <div><strong>Profissional:</strong> {agendamentoPendente.nome_profissional}</div>
-              <div><strong>Horário:</strong> {agendamentoPendente.hora_inicio?.substring(0, 5)}</div>
-              {agendamentoPendente.valor_servico && (
-                <div><strong>Valor:</strong> R$ {parseFloat(agendamentoPendente.valor_servico).toFixed(2).replace('.', ',')}</div>
-              )}
-            </div>
-            
-            <div style={{
-              display: 'flex',
-              gap: '12px'
-            }}>
-              <button
-                onClick={() => {
-                  setShowConfirmModal(false);
-                  setAgendamentoPendente(null);
-                }}
-                style={{
-                  flex: 1,
-                  background: '#F8FAFC',
-                  color: '#64748B',
-                  border: '1px solid #E2E8F0',
-                  borderRadius: '8px',
-                  padding: '12px 20px',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  cursor: 'pointer'
-                }}
-              >
-                ❌ Não
-              </button>
-              <button
-                onClick={executarConfirmacao}
-                style={{
-                  flex: 1,
-                  background: '#10B981',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '12px 20px',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  cursor: 'pointer'
-                }}
-              >
-                Sim, Pago
-              </button>
-            </div>
-          </div>
+          💳 Forma de Pagamento *
+        </label>
+        
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '8px'
+        }}>
+          {[
+            { valor: 'pix', label: 'PIX', emoji: '📱' },
+            { valor: 'dinheiro', label: 'Dinheiro', emoji: '💵' },
+            { valor: 'cartao_credito', label: 'Cartão Crédito', emoji: '💳' },
+            { valor: 'cartao_debito', label: 'Cartão Débito', emoji: '💳' }
+          ].map((opcao) => (
+            <label
+              key={opcao.valor}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px',
+                border: `2px solid ${formaPagamento === opcao.valor ? '#10B981' : '#E2E8F0'}`,
+                borderRadius: '8px',
+                cursor: 'pointer',
+                background: formaPagamento === opcao.valor ? '#F0FDF4' : '#FFFFFF',
+                transition: 'all 0.2s',
+                fontSize: '12px',
+                fontWeight: '500'
+              }}
+            >
+              <input
+                type="radio"
+                name="forma_pagamento"
+                value={opcao.valor}
+                checked={formaPagamento === opcao.valor}
+                onChange={(e) => setFormaPagamento(e.target.value)}
+                style={{ display: 'none' }}
+              />
+              <span>{opcao.emoji}</span>
+              <span style={{ fontSize: '11px' }}>{opcao.label}</span>
+            </label>
+          ))}
         </div>
-      )}
+        
+        {!formaPagamento && (
+          <div style={{
+            fontSize: '11px',
+            color: '#EF4444',
+            marginTop: '8px',
+            fontWeight: '500'
+          }}>
+            ⚠️ Selecione a forma de pagamento para continuar
+          </div>
+        )}
+      </div>
+      
+      <div style={{
+        display: 'flex',
+        gap: '12px'
+      }}>
+        <button
+          onClick={() => {
+            setShowConfirmModal(false);
+            setAgendamentoPendente(null);
+            setFormaPagamento('');
+          }}
+          style={{
+            flex: 1,
+            background: '#F8FAFC',
+            color: '#64748B',
+            border: '1px solid #E2E8F0',
+            borderRadius: '8px',
+            padding: '12px 20px',
+            fontSize: '14px',
+            fontWeight: '600',
+            cursor: 'pointer'
+          }}
+        >
+          ❌ Não
+        </button>
+        <button
+          onClick={executarConfirmacao}
+          disabled={!formaPagamento}
+          style={{
+            flex: 1,
+            background: !formaPagamento ? '#94A3B8' : '#10B981',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '12px 20px',
+            fontSize: '14px',
+            fontWeight: '600',
+            cursor: !formaPagamento ? 'not-allowed' : 'pointer',
+            opacity: !formaPagamento ? 0.6 : 1
+          }}
+        >
+          Sim, Pago
+        </button>
+      </div>
+    </div>
+  </div>
+)}
       <style>
         {`
           @keyframes spin {
