@@ -6309,79 +6309,111 @@ onClick={() => {
     );
   };
 
-  const AgendaScreen = () => {
-    const [filtroAtivo, setFiltroAtivo] = useState('todos');
+const AgendaScreen = () => {
+  const [filtroAtivo, setFiltroAtivo] = useState('todos');
+  const [filtroBarbeiro, setFiltroBarbeiro] = useState('');
+  const [filtroServico, setFiltroServico] = useState('');
+  const [filtroDataInicio, setFiltroDataInicio] = useState('');
+  const [filtroDataFim, setFiltroDataFim] = useState('');
+  const [mostrarFiltrosAvancados, setMostrarFiltrosAvancados] = useState(false);
 
-const agendamentosFiltrados = agendamentos
-  .filter(a => {
-    // CORREÇÃO: Usar timezone correto de São Paulo para todos os cálculos
-    const hoje = getBrasiliaDate();
-    const hojeStr = getBrasiliaDateString();
-    
-    // AMANHÃ - CORRIGIDO
-    const amanhaBrasilia = new Date(hoje.toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
-    amanhaBrasilia.setDate(amanhaBrasilia.getDate() + 1);
-    const amanhaStr = amanhaBrasilia.getFullYear() + '-' + 
-                     String(amanhaBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
-                     String(amanhaBrasilia.getDate()).padStart(2, '0');
-    
-    // SEMANA ATUAL - CORRIGIDO
-    const inicioSemanaBrasilia = new Date(hoje.toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
-    const diaSemana = inicioSemanaBrasilia.getDay();
-    const diasParaSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
-    inicioSemanaBrasilia.setDate(inicioSemanaBrasilia.getDate() + diasParaSegunda);
-    
-    const fimSemanaBrasilia = new Date(inicioSemanaBrasilia);
-    fimSemanaBrasilia.setDate(inicioSemanaBrasilia.getDate() + 6);
-    
-    const inicioSemanaStr = inicioSemanaBrasilia.getFullYear() + '-' + 
-                           String(inicioSemanaBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
-                           String(inicioSemanaBrasilia.getDate()).padStart(2, '0');
-    const fimSemanaStr = fimSemanaBrasilia.getFullYear() + '-' + 
-                        String(fimSemanaBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
-                        String(fimSemanaBrasilia.getDate()).padStart(2, '0');
-    
-    // MÊS ATUAL - CORRIGIDO
-    const inicioMesBrasilia = new Date(hoje.toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
-    inicioMesBrasilia.setDate(1); // Primeiro dia do mês
-    
-    const fimMesBrasilia = new Date(inicioMesBrasilia);
-    fimMesBrasilia.setMonth(fimMesBrasilia.getMonth() + 1);
-    fimMesBrasilia.setDate(0); // Último dia do mês
-    
-    const inicioMesStr = inicioMesBrasilia.getFullYear() + '-' + 
-                        String(inicioMesBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
-                        String(inicioMesBrasilia.getDate()).padStart(2, '0');
-    const fimMesStr = fimMesBrasilia.getFullYear() + '-' + 
-                     String(fimMesBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
-                     String(fimMesBrasilia.getDate()).padStart(2, '0');
-    
-    // DEBUG: Mostrar as datas calculadas
-    console.log('🔍 FILTROS DEBUG:');
-    console.log('📅 Hoje:', hojeStr);
-    console.log('📅 Amanhã:', amanhaStr);
-    console.log('📅 Semana:', inicioSemanaStr, 'até', fimSemanaStr);
-    console.log('📅 Mês:', inicioMesStr, 'até', fimMesStr);
-    console.log('📋 Agendamento data:', a.data_agendamento);
-    
-switch(filtroAtivo) {
-      case 'todos':
-        return a.data_agendamento >= hojeStr;
-      case 'amanha':
-        return a.data_agendamento === amanhaStr;
-      case 'semana':
-        return a.data_agendamento >= hojeStr && a.data_agendamento >= inicioSemanaStr && a.data_agendamento <= fimSemanaStr;
-      case 'mes':
-        return a.data_agendamento >= hojeStr && a.data_agendamento >= inicioMesStr && a.data_agendamento <= fimMesStr;
-      default:
-        return a.data_agendamento >= hojeStr;
-    }
-  })
-  .sort((a, b) => {
-    const dataComparison = a.data_agendamento.localeCompare(b.data_agendamento);
-    if (dataComparison !== 0) return dataComparison;
-    return a.hora_inicio.localeCompare(b.hora_inicio);
-  });
+  const agendamentosFiltrados = agendamentos
+    .filter(a => {
+      // CORREÇÃO: Usar timezone correto de São Paulo para todos os cálculos
+      const hoje = getBrasiliaDate();
+      const hojeStr = getBrasiliaDateString();
+      
+      // AMANHÃ - CORRIGIDO
+      const amanhaBrasilia = new Date(hoje.toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
+      amanhaBrasilia.setDate(amanhaBrasilia.getDate() + 1);
+      const amanhaStr = amanhaBrasilia.getFullYear() + '-' + 
+                       String(amanhaBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
+                       String(amanhaBrasilia.getDate()).padStart(2, '0');
+      
+      // SEMANA ATUAL - CORRIGIDO
+      const inicioSemanaBrasilia = new Date(hoje.toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
+      const diaSemana = inicioSemanaBrasilia.getDay();
+      const diasParaSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
+      inicioSemanaBrasilia.setDate(inicioSemanaBrasilia.getDate() + diasParaSegunda);
+      
+      const fimSemanaBrasilia = new Date(inicioSemanaBrasilia);
+      fimSemanaBrasilia.setDate(inicioSemanaBrasilia.getDate() + 6);
+      
+      const inicioSemanaStr = inicioSemanaBrasilia.getFullYear() + '-' + 
+                             String(inicioSemanaBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
+                             String(inicioSemanaBrasilia.getDate()).padStart(2, '0');
+      const fimSemanaStr = fimSemanaBrasilia.getFullYear() + '-' + 
+                          String(fimSemanaBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
+                          String(fimSemanaBrasilia.getDate()).padStart(2, '0');
+      
+      // MÊS ATUAL - CORRIGIDO
+      const inicioMesBrasilia = new Date(hoje.toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
+      inicioMesBrasilia.setDate(1); // Primeiro dia do mês
+      
+      const fimMesBrasilia = new Date(inicioMesBrasilia);
+      fimMesBrasilia.setMonth(fimMesBrasilia.getMonth() + 1);
+      fimMesBrasilia.setDate(0); // Último dia do mês
+      
+      const inicioMesStr = inicioMesBrasilia.getFullYear() + '-' + 
+                          String(inicioMesBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
+                          String(inicioMesBrasilia.getDate()).padStart(2, '0');
+      const fimMesStr = fimMesBrasilia.getFullYear() + '-' + 
+                       String(fimMesBrasilia.getMonth() + 1).padStart(2, '0') + '-' + 
+                       String(fimMesBrasilia.getDate()).padStart(2, '0');
+      
+      // FILTRO POR PERÍODO (mantido como estava)
+      let passaFiltroPeriodo = false;
+      switch(filtroAtivo) {
+        case 'todos':
+          passaFiltroPeriodo = a.data_agendamento >= hojeStr;
+          break;
+        case 'amanha':
+          passaFiltroPeriodo = a.data_agendamento === amanhaStr;
+          break;
+        case 'semana':
+          passaFiltroPeriodo = a.data_agendamento >= hojeStr && a.data_agendamento >= inicioSemanaStr && a.data_agendamento <= fimSemanaStr;
+          break;
+        case 'mes':
+          passaFiltroPeriodo = a.data_agendamento >= hojeStr && a.data_agendamento >= inicioMesStr && a.data_agendamento <= fimMesStr;
+          break;
+        default:
+          passaFiltroPeriodo = a.data_agendamento >= hojeStr;
+      }
+
+      // NOVOS FILTROS AVANÇADOS
+      const passaFiltroBarbeiro = !filtroBarbeiro || a.barbeiro_id === filtroBarbeiro;
+      const passaFiltroServico = !filtroServico || a.servico.toLowerCase().includes(filtroServico.toLowerCase());
+      const passaFiltroDataInicio = !filtroDataInicio || a.data_agendamento >= filtroDataInicio;
+      const passaFiltroDataFim = !filtroDataFim || a.data_agendamento <= filtroDataFim;
+
+      // Aplicar filtros avançados apenas se algum estiver ativo
+      const temFiltrosAvancados = filtroBarbeiro || filtroServico || filtroDataInicio || filtroDataFim;
+      
+      if (temFiltrosAvancados) {
+        // Se tem filtros avançados, usar apenas eles (ignorar filtro de período)
+        return passaFiltroBarbeiro && passaFiltroServico && passaFiltroDataInicio && passaFiltroDataFim;
+      } else {
+        // Se não tem filtros avançados, usar filtro de período
+        return passaFiltroPeriodo;
+      }
+    })
+    .sort((a, b) => {
+      const dataComparison = a.data_agendamento.localeCompare(b.data_agendamento);
+      if (dataComparison !== 0) return dataComparison;
+      return a.hora_inicio.localeCompare(b.hora_inicio);
+    });
+
+  // Função para limpar todos os filtros
+  const limparFiltros = () => {
+    setFiltroBarbeiro('');
+    setFiltroServico('');
+    setFiltroDataInicio('');
+    setFiltroDataFim('');
+    setFiltroAtivo('todos');
+  };
+
+  // Verificar se tem filtros ativos
+  const temFiltrosAtivos = filtroBarbeiro || filtroServico || filtroDataInicio || filtroDataFim;
 
     return (
       <div style={{
@@ -6459,7 +6491,219 @@ switch(filtroAtivo) {
               Mês
             </button>
           </div>
+{/* BOTÃO PARA MOSTRAR/OCULTAR FILTROS AVANÇADOS */}
+          <div style={{ marginBottom: '16px' }}>
+            <button
+              onClick={() => setMostrarFiltrosAvancados(!mostrarFiltrosAvancados)}
+              style={{
+                background: temFiltrosAtivos ? '#3B82F6' : '#F8FAFC',
+                color: temFiltrosAtivos ? 'white' : '#64748B',
+                border: '1px solid #E2E8F0',
+                borderRadius: '8px',
+                padding: '8px 16px',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              🔍 Filtros Avançados
+              {temFiltrosAtivos && (
+                <span style={{
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  borderRadius: '50%',
+                  width: '16px',
+                  height: '16px',
+                  fontSize: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: '700'
+                }}>
+                  {[filtroBarbeiro, filtroServico, filtroDataInicio, filtroDataFim].filter(f => f).length}
+                </span>
+              )}
+            </button>
+          </div>
 
+          {/* SEÇÃO DE FILTROS AVANÇADOS */}
+          {mostrarFiltrosAvancados && (
+            <div style={{
+              background: '#FFFFFF',
+              border: '1px solid #F1F5F9',
+              borderRadius: '12px',
+              padding: '16px',
+              marginBottom: '20px'
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '16px'
+              }}>
+                <h3 style={{
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: '#1E293B',
+                  margin: 0
+                }}>
+                  🔍 Filtros Avançados
+                </h3>
+                
+                {temFiltrosAtivos && (
+                  <button
+                    onClick={limparFiltros}
+                    style={{
+                      background: '#EF4444',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '4px 8px',
+                      fontSize: '10px',
+                      fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Limpar Todos
+                  </button>
+                )}
+              </div>
+              
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '12px',
+                marginBottom: '12px'
+              }}>
+                {/* FILTRO POR BARBEIRO */}
+                <div>
+                  <label style={{
+                    fontSize: '12px',
+                    color: '#64748B',
+                    fontWeight: '500',
+                    marginBottom: '4px',
+                    display: 'block'
+                  }}>
+                    Barbeiro
+                  </label>
+                  <select
+                    value={filtroBarbeiro}
+                    onChange={(e) => setFiltroBarbeiro(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      color: '#64748B',
+                      background: '#FFFFFF',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="">Todos os barbeiros</option>
+                    {barbeiros
+                      .filter(b => b.ativo === 'true' || b.ativo === true)
+                      .map(barbeiro => (
+                        <option key={barbeiro.barbeiro_id} value={barbeiro.barbeiro_id}>
+                          {barbeiro.nome}
+                        </option>
+                      ))
+                    }
+                  </select>
+                </div>
+
+                {/* FILTRO POR SERVIÇO */}
+                <div>
+                  <label style={{
+                    fontSize: '12px',
+                    color: '#64748B',
+                    fontWeight: '500',
+                    marginBottom: '4px',
+                    display: 'block'
+                  }}>
+                    Serviço
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Digite o nome do serviço..."
+                    value={filtroServico}
+                    onChange={(e) => setFiltroServico(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      color: '#64748B',
+                      background: '#FFFFFF',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '12px'
+              }}>
+                {/* FILTRO DATA INÍCIO */}
+                <div>
+                  <label style={{
+                    fontSize: '12px',
+                    color: '#64748B',
+                    fontWeight: '500',
+                    marginBottom: '4px',
+                    display: 'block'
+                  }}>
+                    Data Início
+                  </label>
+                  <CustomDatePicker
+                    value={filtroDataInicio}
+                    onChange={setFiltroDataInicio}
+                    label=""
+                  />
+                </div>
+
+                {/* FILTRO DATA FIM */}
+                <div>
+                  <label style={{
+                    fontSize: '12px',
+                    color: '#64748B',
+                    fontWeight: '500',
+                    marginBottom: '4px',
+                    display: 'block'
+                  }}>
+                    Data Fim
+                  </label>
+                  <CustomDatePicker
+                    value={filtroDataFim}
+                    onChange={setFiltroDataFim}
+                    label=""
+                  />
+                </div>
+              </div>
+
+              {/* INDICADOR DE FILTROS ATIVOS */}
+              {temFiltrosAtivos && (
+                <div style={{
+                  marginTop: '12px',
+                  padding: '8px 12px',
+                  background: '#EFF6FF',
+                  border: '1px solid #DBEAFE',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  color: '#1E40AF'
+                }}>
+                  ℹ️ {agendamentosFiltrados.length} agendamentos encontrados com os filtros aplicados
+                </div>
+              )}
+            </div>
+          )}
           <div style={{ 
             display: 'flex', 
             flexDirection: 'column', 
