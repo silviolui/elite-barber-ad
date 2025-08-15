@@ -5376,18 +5376,23 @@ const SuccessPopup = () => {
                   SISTEMA
                 </div>
                 
-                <button style={{
-                  width: '100%',
-                  background: 'none',
-                  border: 'none',
-                  padding: '12px 0',
-                  fontSize: '14px',
-                  color: '#64748B',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between'
-                }}>
+<button 
+  onClick={() => {
+    setCurrentScreen('meu_plano');
+    setShowMenu(false);
+  }}
+  style={{
+  width: '100%',
+  background: 'none',
+  border: 'none',
+  padding: '12px 0',
+  fontSize: '14px',
+  color: '#64748B',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between'
+}}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <Crown size={16} />
                     <span>Meu Plano</span>
@@ -12467,36 +12472,239 @@ const ComingSoonScreen = ({ title }) => (
       </div>
     </div>
   );
-  const renderScreen = () => {
-    switch(currentScreen) {
-      case 'agenda':
-        return <AgendaScreen />;
-      case 'profissionais':
-        return <ProfissionaisScreen />;
-      case 'financeiro':
-        return <FinanceiroScreen />;
-      case 'historico':
-        return <HistoricoScreen />;
-      case 'configuracoes':
-        return <ConfiguracoesScreen />;
-      case 'servicos':
-  return <ServicosScreen onServicoChange={recarregarServicosGlobal} />;
-      case 'clientes':
-        return <ClientesScreen />;
-      case 'produtos':
-        return <ComingSoonScreen title="Produtos" />;
-      case 'pacotes':
-        return <ComingSoonScreen title="Financeiro" />;
-      case 'marketing':
-        return <ComingSoonScreen title="Marketing" />;
-      case 'relatorios':
-        return <RelatoriosMenuScreen />;
-      case 'configurar_conta':
-        return <ConfigurarContaScreen />;
-      default:
-        return <Dashboard />;
-    }
-  };
+
+const MeuPlanoScreen = () => {
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: '#F8FAFC',
+      paddingBottom: '100px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    }}>
+      <Header title="Meu Plano" subtitle="Gerencie sua assinatura" showBack />
+
+      <div style={{ padding: '20px' }}>
+        {/* PLANO ATUAL */}
+        <div style={{
+          background: '#FFFFFF',
+          border: '1px solid #F1F5F9',
+          borderRadius: '12px',
+          padding: '20px',
+          marginBottom: '20px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+            <div style={{
+              width: '48px',
+              height: '48px',
+              background: '#FF6B35',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Crown size={24} color="white" />
+            </div>
+            <div>
+              <h3 style={{
+                fontSize: '18px',
+                fontWeight: '700',
+                color: '#1E293B',
+                margin: '0 0 4px 0'
+              }}>
+                Plano Premium
+              </h3>
+              <p style={{
+                fontSize: '14px',
+                color: '#10B981',
+                margin: 0,
+                fontWeight: '600'
+              }}>
+                ✅ Ativo - Renovação automática
+              </p>
+            </div>
+          </div>
+
+          <div style={{
+            background: '#F8FAFC',
+            borderRadius: '8px',
+            padding: '16px',
+            marginBottom: '16px'
+          }}>
+            <h4 style={{
+              fontSize: '14px',
+              fontWeight: '600',
+              color: '#1E293B',
+              margin: '0 0 12px 0'
+            }}>
+              📋 Recursos Inclusos
+            </h4>
+            
+            <div style={{ display: 'grid', gap: '8px' }}>
+              {[
+                'Agendamentos ilimitados',
+                'Relatórios completos',
+                'Notificações PWA',
+                'Sistema de clientes',
+                'Múltiplos profissionais',
+                'Backup automático',
+                'Suporte prioritário'
+              ].map((recurso, index) => (
+                <div key={index} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '13px',
+                  color: '#64748B'
+                }}>
+                  <span style={{ color: '#10B981' }}>✅</span>
+                  {recurso}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(2, 1fr)', 
+            gap: '12px',
+            marginBottom: '16px'
+          }}>
+            <div style={{
+              background: '#F0FDF4',
+              borderRadius: '8px',
+              padding: '12px',
+              textAlign: 'center'
+            }}>
+              <p style={{ fontSize: '11px', color: '#166534', margin: '0 0 4px 0' }}>
+                Próxima Cobrança
+              </p>
+              <p style={{ fontSize: '14px', fontWeight: '700', color: '#1E293B', margin: 0 }}>
+                15/09/2025
+              </p>
+            </div>
+            <div style={{
+              background: '#EFF6FF',
+              borderRadius: '8px',
+              padding: '12px',
+              textAlign: 'center'
+            }}>
+              <p style={{ fontSize: '11px', color: '#1E40AF', margin: '0 0 4px 0' }}>
+                Valor Mensal
+              </p>
+              <p style={{ fontSize: '14px', fontWeight: '700', color: '#1E293B', margin: 0 }}>
+                R$ 29,90
+              </p>
+            </div>
+          </div>
+
+          <button style={{
+            width: '100%',
+            background: '#1E293B',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '12px',
+            fontSize: '14px',
+            fontWeight: '600',
+            cursor: 'pointer'
+          }}>
+            🎯 Gerenciar Assinatura
+          </button>
+        </div>
+
+        {/* HISTÓRICO DE PAGAMENTOS */}
+        <div style={{
+          background: '#FFFFFF',
+          border: '1px solid #F1F5F9',
+          borderRadius: '12px',
+          padding: '20px'
+        }}>
+          <h3 style={{
+            fontSize: '16px',
+            fontWeight: '600',
+            color: '#1E293B',
+            margin: '0 0 16px 0'
+          }}>
+            💳 Histórico de Pagamentos
+          </h3>
+          
+          {[
+            { data: '15/08/2025', valor: 'R$ 29,90', status: 'Pago', metodo: 'PIX' },
+            { data: '15/07/2025', valor: 'R$ 29,90', status: 'Pago', metodo: 'Cartão' },
+            { data: '15/06/2025', valor: 'R$ 29,90', status: 'Pago', metodo: 'PIX' }
+          ].map((pagamento, index) => (
+            <div key={index} style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '12px',
+              background: '#F8FAFC',
+              borderRadius: '8px',
+              marginBottom: index < 2 ? '8px' : '0'
+            }}>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#1E293B' }}>
+                  {pagamento.data}
+                </div>
+                <div style={{ fontSize: '12px', color: '#64748B' }}>
+                  via {pagamento.metodo}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '14px', fontWeight: '700', color: '#10B981' }}>
+                  {pagamento.valor}
+                </div>
+                <div style={{ 
+                  fontSize: '11px', 
+                  color: '#10B981',
+                  background: '#DCFCE7',
+                  padding: '2px 6px',
+                  borderRadius: '4px'
+                }}>
+                  ✅ {pagamento.status}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const renderScreen = () => {
+  switch(currentScreen) {
+    case 'agenda':
+      return <AgendaScreen />;
+    case 'profissionais':
+      return <ProfissionaisScreen />;
+    case 'financeiro':
+      return <FinanceiroScreen />;
+    case 'historico':
+      return <HistoricoScreen />;
+    case 'configuracoes':
+      return <ConfiguracoesScreen />;
+    case 'servicos':
+      return <ServicosScreen onServicoChange={recarregarServicosGlobal} />;
+    case 'clientes':
+      return <ClientesScreen />;
+    case 'produtos':
+      return <ComingSoonScreen title="Produtos" />;
+    case 'pacotes':
+      return <ComingSoonScreen title="Financeiro" />;
+    case 'marketing':
+      return <ComingSoonScreen title="Marketing" />;
+    case 'relatorios':
+      return <RelatoriosMenuScreen />;
+    case 'configurar_conta':
+      return <ConfigurarContaScreen />;
+    // ADICIONAR ESTA LINHA:
+    case 'meu_plano':
+      return <MeuPlanoScreen />;
+    default:
+      return <Dashboard />;
+  }
+};
 
 // Se ainda está carregando
   if (appLoading) {
@@ -13190,4 +13398,3 @@ const AppWithAuth = () => (
 );
 
 export default AppWithAuth;
-
